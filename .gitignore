@@ -45,3 +45,4 @@ tmp/
 
 # Project specific
 upload/
+AIWorkHelper/etc/api.yaml

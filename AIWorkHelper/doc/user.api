@@ -1,0 +1,125 @@
+// 用户模块接口定义
+syntax = "v1"
+
+info (
+    title: "主体业务后台"
+    author: "鹏哥"
+)
+
+type (
+    // 用户基础信息
+    User {
+       Id            string `json:"id,omitempty"`        // 用户ID
+       Password      string `json:"password,omitempty"`  // 密码
+       Name          string `json:"name,omitempty"`      // 用户名
+       Status        int    `json:"status,omitempty"`    // 状态：0=禁用 1=启用
+    }
+
+    // 登录请求
+    loginReq {
+       Name string `json:"name,omitempty"`        // 用户名
+       Password string `json:"password,omitempty"` // 密码
+    }
+
+    // 登录响应
+    loginResp {
+       Status       int    `json:"status,omitempty"`       // 状态：0=失败 1=成功
+       Id           string `json:"id,omitempty"`           // 用户ID
+       Name         string `json:"name,omitempty"`         // 用户名
+       AccessToken  string `json:"token,omitempty"`        // JWT令牌
+       AccessExpire int64  `json:"accessExpire,omitempty"` // 过期时间
+       RefreshAfter int64  `json:"refreshAfter,omitempty"` // 刷新时间
+    }
+
+    // 用户列表查询请求
+    userListReq {
+        Ids   []string `json:"ids,omitempty"`   // 用户ID列表
+        Name  string   `json:"name,omitempty"`  // 用户名模糊搜索
+        Page  int      `json:"page,omitempty"`  // 页码
+        Count int      `json:"count,omitempty"` // 每页数量
+    }
+
+    // 用户列表响应
+    userListResp {
+        Count int64   `json:"count"` // 总记录数
+        List  []*User `json:"data"`  // 用户列表
+    }
+
+    // 修改密码请求
+    updatePasswordReq {
+        Id     string `json:"id"`     // 用户ID
+        OldPwd string `json:"oldPwd"` // 原密码
+        NewPwd string `json:"newPwd"` // 新密码
+    }
+)
+
+// 用户服务 - 公开接口
+@server(
+    group: v1/user
+    logic: User
+)
+service User {
+    @server(
+        handler: Login
+        logic: User.Login
+        doc: 用户登录
+        logicDoc: 验证用户名密码
+    )
+    post /login(loginReq) returns (loginResp)
+}
+
+// 用户服务 - 需要认证
+@server(
+    group: v1/user
+    logic: User
+    middleware: Jwt
+)
+service User{
+    @server(
+        handler: Info
+        logic: User.Info
+        doc: 获取用户信息
+        logicDoc: 根据ID获取用户
+    )
+    get /:id(IdPathReq) returns(User)
+
+    @server(
+        handler: Create
+        logic: User.Create
+        doc: 创建用户
+        logicDoc: 新增用户
+    )
+    post / (User)
+
+    @server(
+        handler: Edit
+        logic: User.Edit
+        doc: 编辑用户
+        logicDoc: 更新用户信息
+    )
+    put / (User)
+
+    @server(
+        handler: Delete
+        logic: User.Delete
+        doc: 删除用户
+        logicDoc: 删除指定用户
+    )
+    delete /:id(IdPathReq)
+
+    @server(
+        handler: List
+        logic: User.List
+        doc: 用户列表
+        logicDoc: 分页查询用户
+    )
+    get /list(userListReq) returns (userListResp)
+
+    @server(
+        handler: UpdatePassword
+        logic: User.UpdatePassword
+        doc: 修改密码
+        logicDoc: 更新用户密码
+    )
+    post /password(updatePasswordReq)
+}

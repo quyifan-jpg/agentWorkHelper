@@ -1,0 +1,20 @@
+// API 语法版本声明，固定为 "v1"
+syntax = "v1"
+
+// 导入其他 API 文件
+
+import "base.api"        // base.api: 包含基础的通用数据结构
+import "user.api"        // user.api: 包含用户相关的接口定义
+import "department.api"  // 部门相关接口定义
+import "todo.api"        // 待办相关接口定义
+import "approval.api"    // 审批相关接口定义
+import "chat.api"        // 聊天相关接口定义
+
+// 项目基本信息配置
+info (
+	title: "业务后台"        // 项目标题
+	author: "鹏哥"          // 项目作者
+	serviceMod: "1"        // 服务模式：1=增量更新模式，0=覆盖模式
+	                       // 1: 如果服务已存在，会在现有基础上新增方法
+	                       // 0: 如果服务已存在，不会更新已有的handler和logic文件
+)

@@ -1,0 +1,204 @@
+{
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "schemes": [
+    "https"
+  ],
+  "swagger": "2.0",
+  "info": {
+    "title": "AIWorkHelper Backend API",
+    "version": "1.0"
+  },
+  "basePath": "/",
+  "paths": {
+    "/info": {
+      "get": {
+        "produces": [
+          "application/json"
+        ],
+        "schemes": [
+          "https"
+        ],
+        "summary": "Info",
+        "operationId": "v1/UserInfo",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "isAdmin": {
+                  "type": "boolean"
+                },
+                "status": {
+                  "type": "integer"
+                },
+                "username": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/login": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "schemes": [
+          "https"
+        ],
+        "summary": "Login",
+        "operationId": "v1/UserLogin",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "username",
+                "password"
+              ],
+              "properties": {
+                "password": {
+                  "description": "密码",
+                  "type": "string"
+                },
+                "username": {
+                  "description": "用户名",
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "token": {
+                  "description": "JWT令牌",
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/profile": {
+      "put": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "schemes": [
+          "https"
+        ],
+        "summary": "UpdateProfile",
+        "operationId": "v1/UserUpdateProfile",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "name"
+              ],
+              "properties": {
+                "name": {
+                  "description": "用户名",
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {}
+          }
+        }
+      }
+    },
+    "/register": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "schemes": [
+          "https"
+        ],
+        "summary": "Register",
+        "operationId": "v1/UserRegister",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "username",
+                "password"
+              ],
+              "properties": {
+                "password": {
+                  "description": "密码",
+                  "type": "string"
+                },
+                "username": {
+                  "description": "用户名",
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "description": "响应消息",
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-date": "2025-11-28 17:24:54",
+  "x-description": "This is a goctl generated swagger file.",
+  "x-github": "https://github.com/zeromicro/go-zero",
+  "x-go-zero-doc": "https://go-zero.dev/",
+  "x-goctl-version": "1.9.2"
+}

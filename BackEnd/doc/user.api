@@ -1,0 +1,77 @@
+// 用户模块接口定义
+syntax = "v1"
+
+import "base.api"
+
+info (
+	title:  "AIWorkHelper Backend API"
+	author: "BackEnd"
+)
+
+type (
+	// 用户基础信息
+	User {
+		Id       uint   `json:"id,omitempty"` // 用户ID
+		Name     string `json:"name,omitempty"` // 用户名
+		Password string `json:"password,omitempty"` // 密码
+		Status   int    `json:"status,omitempty"` // 状态：0=正常 1=禁用
+		IsAdmin  bool   `json:"isAdmin,omitempty"` // 是否管理员
+	}
+	// 注册请求
+	RegisterReq {
+		Username string `json:"username" binding:"required"` // 用户名
+		Password string `json:"password" binding:"required"` // 密码
+	}
+	// 注册响应
+	RegisterResp {
+		Message string `json:"message,omitempty"` // 响应消息
+	}
+	// 登录请求
+	LoginReq {
+		Username string `json:"username" binding:"required"` // 用户名
+		Password string `json:"password" binding:"required"` // 密码
+	}
+	// 登录响应
+	LoginResp {
+		Token string `json:"token,omitempty"` // JWT令牌
+	}
+	// 用户信息响应
+	UserInfoResp {
+		Id       uint   `json:"id,omitempty"`
+		Username string `json:"username,omitempty"`
+		Status   int    `json:"status,omitempty"`
+		IsAdmin  bool   `json:"isAdmin,omitempty"`
+	}
+	// 更新用户资料请求
+	UpdateProfileReq {
+		Name string `json:"name,omitempty"` // 用户名
+	}
+)
+
+// 用户服务 - 公开接口
+@server (
+	group: v1/user
+	logic: User
+)
+service User {
+	@handler Register
+	post /register (RegisterReq) returns (RegisterResp)
+
+	@handler Login
+	post /login (LoginReq) returns (LoginResp)
+}
+
+// 用户服务 - 需要认证
+@server (
+	group:      v1/user
+	logic:      User
+	middleware: Jwt
+)
+service User {
+	@handler Info
+	get /info returns (UserInfoResp)
+
+	@handler UpdateProfile
+	put /profile (UpdateProfileReq)
+}
+

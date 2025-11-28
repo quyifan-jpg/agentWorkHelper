@@ -1,5 +1,10 @@
-Name: backend
-Addr: 0.0.0.0:8889
+Name: backend-api
+Host: 0.0.0.0
+Port: 8889
 
 MySQL:
   DSN: "root:root@tcp(127.0.0.1:3306)/aiworkhelper?charset=utf8mb4&parseTime=True&loc=Local"
+
+Auth:
+  Secret: "my-secret-key"
+  Expire: 86400 # 24 hours

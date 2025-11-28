@@ -1,0 +1,15 @@
+// 基础数据结构定义
+// 这里定义项目中通用的数据结构，可以被其他 API 文件复用
+type (
+	// 路径参数请求结构 - 用于从 URL 路径中获取 ID 参数
+	// 例如：GET /user/:id 中的 :id 参数
+	IdPathReq {
+		Id string `uri:"id,omitempty"` // uri 标签表示从 URL 路径获取参数
+	}
+	// ID 响应结构 - 通用的 ID 返回格式
+	// 用于返回创建、更新等操作后的资源 ID
+	IdResp {
+		Id string `json:"id,omitempty"` // json 标签表示 JSON 序列化字段名
+	}
+)
+

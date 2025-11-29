@@ -17,7 +17,12 @@ type LoginReq struct {
 }
 
 type LoginResp struct {
-	Token string `json:"token,omitempty"` // JWT令牌
+	Status       int    `json:"status,omitempty"`       // 状态：1=成功
+	Id           uint   `json:"id,omitempty"`           // 用户ID
+	Name         string `json:"name,omitempty"`         // 用户名
+	Token        string `json:"token,omitempty"`        // JWT令牌
+	AccessExpire int64  `json:"accessExpire,omitempty"` // 过期时间
+	RefreshAfter int64  `json:"refreshAfter,omitempty"` // 刷新时间
 }
 
 type RegisterReq struct {
@@ -51,4 +56,16 @@ type UserInfoResp struct {
 	Name    string `json:"name,omitempty"` // 用户名
 	Status  int    `json:"status,omitempty"`
 	IsAdmin bool   `json:"isAdmin,omitempty"`
+}
+
+type UserListReq struct {
+	Ids   []string `json:"ids,omitempty"`   // 用户ID列表
+	Name  string   `json:"name,omitempty"`  // 用户名模糊搜索
+	Page  int      `json:"page,omitempty"`  // 页码
+	Count int      `json:"count,omitempty"` // 每页数量
+}
+
+type UserListResp struct {
+	Count int64  `json:"count"` // 总记录数
+	Data  []User `json:"data"`  // 用户列表
 }

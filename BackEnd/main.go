@@ -30,15 +30,12 @@ func main() {
 	var cfg config.Config
 	conf.MustLoad(*configFile, &cfg)
 
-	svc, err := svc.NewServiceContext(cfg)
-	if err != nil {
-		panic(err)
-	}
+	svcCtx := svc.NewServiceContext(cfg)
 
 	var srv Serve
 	switch *modeType {
 	case Api:
-		srv = api.NewHandle(svc)
+		srv = api.NewApiHandler(svcCtx)
 	// add other module case
 	default:
 		panic("请指定正确的服务")

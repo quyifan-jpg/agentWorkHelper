@@ -6,6 +6,7 @@ import (
 	"BackEnd/internal/types"
 	"BackEnd/pkg/httpx"
 	"BackEnd/pkg/token"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -36,9 +37,17 @@ func (h *User) InitRegister(engine *gin.Engine) {
 	// 需要认证的路由
 	g1 := engine.Group("/v1/user", h.svcCtx.Jwt.Handler)
 	{
+		// 原有路由
 		g1.GET("/info", h.Info)
 		g1.PUT("/profile", h.UpdateProfile)
 		g1.POST("/password", h.ChangePassword)
+
+		// 新增路由
+		g1.GET("/:id", h.GetUserByID)
+		g1.POST("", h.CreateUser)
+		g1.PUT("", h.UpdateUser)
+		g1.DELETE("/:id", h.DeleteUser)
+		g1.GET("/list", h.ListUsers)
 	}
 }
 
@@ -88,13 +97,13 @@ func (h *User) Login(ctx *gin.Context) {
 		return
 	}
 
-	token, err := h.user.Login(ctx.Request.Context(), req.Name, req.Password)
+	loginResp, err := h.user.Login(ctx.Request.Context(), req.Name, req.Password)
 	if err != nil {
 		httpx.Unauthorized(ctx, err.Error())
 		return
 	}
 
-	httpx.Success(ctx, types.LoginResp{Token: token})
+	httpx.Success(ctx, loginResp)
 }
 
 // Info 获取用户信息
@@ -189,5 +198,160 @@ func (h *User) ChangePassword(ctx *gin.Context) {
 		return
 	}
 	httpx.SuccessWithMessage(ctx, "密码修改成功", nil)
+}
+
+// GetUserByID 获取指定用户信息
+// @Summary      获取用户信息
+// @Description  根据ID获取用户信息
+// @Tags         user
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id   path      string  true  "用户ID"
+// @Success      200  {object}  object{code=int,msg=string,data=types.UserInfoResp}
+// @Failure      400  {object}  object{code=int,msg=string}
+// @Router       /v1/user/{id} [get]
+func (h *User) GetUserByID(ctx *gin.Context) {
+	var req types.IdPathReq
+	if err := ctx.ShouldBindUri(&req); err != nil {
+		httpx.BadRequest(ctx, err.Error())
+		return
+	}
+
+	// 转换 string ID 到 uint
+	userID, err := strconv.ParseUint(req.Id, 10, 32)
+	if err != nil {
+		httpx.BadRequest(ctx, "invalid user id")
+		return
+	}
+
+	userInfo, err := h.user.GetInfoByID(ctx.Request.Context(), uint(userID))
+	if err != nil {
+		httpx.FailWithErr(ctx, err)
+		return
+	}
+
+	httpx.Success(ctx, userInfo)
+}
+
+// CreateUser 创建用户
+// @Summary      创建用户
+// @Description  管理员创建新用户
+// @Tags         user
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        req  body      types.User  true  "用户信息"
+// @Success      200  {object}  object{code=int,msg=string}
+// @Failure      400  {object}  object{code=int,msg=string}
+// @Router       /v1/user [post]
+func (h *User) CreateUser(ctx *gin.Context) {
+	var req types.User
+	if err := httpx.BindAndValidate(ctx, &req); err != nil {
+		httpx.BadRequest(ctx, err.Error())
+		return
+	}
+
+	// TODO: 检查当前用户是否为管理员
+	// currentUserID, _ := token.GetUserIDFromGin(ctx)
+	// ...
+
+	err := h.user.Create(ctx.Request.Context(), &req)
+	if err != nil {
+		httpx.FailWithErr(ctx, err)
+		return
+	}
+
+	httpx.SuccessWithMessage(ctx, "创建成功", nil)
+}
+
+// UpdateUser 更新用户
+// @Summary      更新用户
+// @Description  管理员更新用户信息
+// @Tags         user
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        req  body      types.User  true  "用户信息"
+// @Success      200  {object}  object{code=int,msg=string}
+// @Failure      400  {object}  object{code=int,msg=string}
+// @Router       /v1/user [put]
+func (h *User) UpdateUser(ctx *gin.Context) {
+	var req types.User
+	if err := httpx.BindAndValidate(ctx, &req); err != nil {
+		httpx.BadRequest(ctx, err.Error())
+		return
+	}
+
+	err := h.user.Update(ctx.Request.Context(), &req)
+	if err != nil {
+		httpx.FailWithErr(ctx, err)
+		return
+	}
+
+	httpx.SuccessWithMessage(ctx, "更新成功", nil)
+}
+
+// DeleteUser 删除用户
+// @Summary      删除用户
+// @Description  管理员删除用户
+// @Tags         user
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id   path      string  true  "用户ID"
+// @Success      200  {object}  object{code=int,msg=string}
+// @Failure      400  {object}  object{code=int,msg=string}
+// @Router       /v1/user/{id} [delete]
+func (h *User) DeleteUser(ctx *gin.Context) {
+	var req types.IdPathReq
+	if err := ctx.ShouldBindUri(&req); err != nil {
+		httpx.BadRequest(ctx, err.Error())
+		return
+	}
+
+	// 转换 string ID 到 uint
+	userID, err := strconv.ParseUint(req.Id, 10, 32)
+	if err != nil {
+		httpx.BadRequest(ctx, "invalid user id")
+		return
+	}
+
+	err = h.user.Delete(ctx.Request.Context(), uint(userID))
+	if err != nil {
+		httpx.FailWithErr(ctx, err)
+		return
+	}
+
+	httpx.SuccessWithMessage(ctx, "删除成功", nil)
+}
+
+// ListUsers 用户列表
+// @Summary      用户列表
+// @Description  分页查询用户列表
+// @Tags         user
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        page   query     int     false  "页码"
+// @Param        count  query     int     false  "每页数量"
+// @Param        name   query     string  false  "用户名搜索"
+// @Success      200  {object}  object{code=int,msg=string,data=types.UserListResp}
+// @Failure      400  {object}  object{code=int,msg=string}
+// @Router       /v1/user/list [get]
+func (h *User) ListUsers(ctx *gin.Context) {
+	var req types.UserListReq
+	if err := ctx.ShouldBindQuery(&req); err != nil {
+		httpx.BadRequest(ctx, err.Error())
+		return
+	}
+
+	resp, err := h.user.List(ctx.Request.Context(), &req)
+	if err != nil {
+		httpx.FailWithErr(ctx, err)
+		return
+	}
+
+	httpx.Success(ctx, resp)
 }
 

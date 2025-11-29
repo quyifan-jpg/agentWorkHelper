@@ -3,9 +3,12 @@ package logic
 import (
 	"BackEnd/internal/model"
 	"BackEnd/internal/svc"
+	"BackEnd/internal/types"
 	"BackEnd/pkg/jwt"
 	"context"
 	"errors"
+	"strconv"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -13,10 +16,15 @@ import (
 // UserLogic 用户业务逻辑接口
 type UserLogic interface {
 	Register(ctx context.Context, username, password string) error
-	Login(ctx context.Context, username, password string) (string, error)
+	Login(ctx context.Context, username, password string) (*types.LoginResp, error)
 	GetInfo(ctx context.Context, userID uint) (interface{}, error)
+	GetInfoByID(ctx context.Context, userID uint) (*types.UserInfoResp, error)
 	UpdateProfile(ctx context.Context, userID uint, name string) error
 	ChangePassword(ctx context.Context, userID uint, oldPassword, newPassword string) error
+	List(ctx context.Context, req *types.UserListReq) (*types.UserListResp, error)
+	Create(ctx context.Context, user *types.User) error
+	Update(ctx context.Context, user *types.User) error
+	Delete(ctx context.Context, userID uint) error
 }
 
 type userLogic struct {
@@ -59,19 +67,33 @@ func (l *userLogic) Register(ctx context.Context, username, password string) err
 }
 
 // Login 用户登录
-func (l *userLogic) Login(ctx context.Context, username, password string) (string, error) {
+func (l *userLogic) Login(ctx context.Context, username, password string) (*types.LoginResp, error) {
 	var user model.User
 	if err := l.svcCtx.DB.WithContext(ctx).Where("name = ?", username).First(&user).Error; err != nil {
-		return "", errors.New("user not found")
+		return nil, errors.New("user not found")
 	}
 
 	// 验证密码
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
-		return "", errors.New("invalid password")
+		return nil, errors.New("invalid password")
 	}
 
 	// 生成 JWT token
-	return jwt.GenerateToken(user.ID, l.svcCtx.Config.Auth.Secret, l.svcCtx.Config.Auth.Expire)
+	token, err := jwt.GenerateToken(user.ID, l.svcCtx.Config.Auth.Secret, l.svcCtx.Config.Auth.Expire)
+	if err != nil {
+		return nil, err
+	}
+
+	// 返回完整登录信息
+	now := time.Now().Unix()
+	return &types.LoginResp{
+		Status:       1,
+		Id:           user.ID,
+		Name:         user.Name,
+		Token:        token,
+		AccessExpire: now + l.svcCtx.Config.Auth.Expire,
+		RefreshAfter: now + l.svcCtx.Config.Auth.Expire/2,
+	}, nil
 }
 
 // GetInfo 获取用户信息
@@ -133,5 +155,158 @@ func (l *userLogic) ChangePassword(ctx context.Context, userID uint, oldPassword
 		return errors.New("failed to update password")
 	}
 
+	return nil
+}
+
+// GetInfoByID 根据ID获取用户信息
+func (l *userLogic) GetInfoByID(ctx context.Context, userID uint) (*types.UserInfoResp, error) {
+	var user model.User
+	if err := l.svcCtx.DB.WithContext(ctx).Where("id = ?", userID).First(&user).Error; err != nil {
+		return nil, errors.New("user not found")
+	}
+
+	return &types.UserInfoResp{
+		Id:      user.ID,
+		Name:    user.Name,
+		Status:  user.Status,
+		IsAdmin: user.IsAdmin,
+	}, nil
+}
+
+// List 用户列表（分页 + 搜索）
+func (l *userLogic) List(ctx context.Context, req *types.UserListReq) (*types.UserListResp, error) {
+	// 设置默认分页参数
+	page := req.Page
+	if page <= 0 {
+		page = 1
+	}
+	count := req.Count
+	if count <= 0 {
+		count = 10
+	}
+
+	query := l.svcCtx.DB.WithContext(ctx).Model(&model.User{})
+
+	// 按用户名模糊搜索
+	if req.Name != "" {
+		query = query.Where("name LIKE ?", "%"+req.Name+"%")
+	}
+
+	// 按ID列表查询
+	if len(req.Ids) > 0 {
+		// 转换 string ID 到 uint
+		var uintIds []uint
+		for _, idStr := range req.Ids {
+			if id, err := strconv.ParseUint(idStr, 10, 32); err == nil {
+				uintIds = append(uintIds, uint(id))
+			}
+		}
+		if len(uintIds) > 0 {
+			query = query.Where("id IN ?", uintIds)
+		}
+	}
+
+	// 获取总数
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, err
+	}
+
+	// 分页查询
+	var users []model.User
+	offset := (page - 1) * count
+	if err := query.Offset(offset).Limit(count).Find(&users).Error; err != nil {
+		return nil, err
+	}
+
+	// 转换为响应格式
+	var userList []types.User
+	for _, u := range users {
+		userList = append(userList, types.User{
+			Id:      u.ID,
+			Name:    u.Name,
+			Status:  u.Status,
+			IsAdmin: u.IsAdmin,
+		})
+	}
+
+	return &types.UserListResp{
+		Count: total,
+		Data:  userList,
+	}, nil
+}
+
+// Create 创建用户
+func (l *userLogic) Create(ctx context.Context, user *types.User) error {
+	// 检查用户名是否已存在
+	var count int64
+	l.svcCtx.DB.WithContext(ctx).Model(&model.User{}).Where("name = ?", user.Name).Count(&count)
+	if count > 0 {
+		return errors.New("user already exists")
+	}
+
+	// 设置默认密码
+	password := user.Password
+	if password == "" {
+		password = "123456" // 默认密码
+	}
+
+	// 加密密码
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	// 创建用户
+	newUser := &model.User{
+		Name:     user.Name,
+		Password: string(hashedPassword),
+		Status:   user.Status,
+		IsAdmin:  user.IsAdmin,
+	}
+
+	if err := l.svcCtx.DB.WithContext(ctx).Create(newUser).Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Update 更新用户
+func (l *userLogic) Update(ctx context.Context, user *types.User) error {
+	var existingUser model.User
+	if err := l.svcCtx.DB.WithContext(ctx).Where("id = ?", user.Id).First(&existingUser).Error; err != nil {
+		return errors.New("user not found")
+	}
+
+	// 更新字段
+	if user.Name != "" {
+		existingUser.Name = user.Name
+	}
+	existingUser.Status = user.Status
+	existingUser.IsAdmin = user.IsAdmin
+
+	// 如果提供了新密码，则更新密码
+	if user.Password != "" {
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+		if err != nil {
+			return err
+		}
+		existingUser.Password = string(hashedPassword)
+	}
+
+	if err := l.svcCtx.DB.WithContext(ctx).Save(&existingUser).Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Delete 删除用户（软删除）
+func (l *userLogic) Delete(ctx context.Context, userID uint) error {
+	// 使用 GORM 软删除
+	if err := l.svcCtx.DB.WithContext(ctx).Delete(&model.User{}, userID).Error; err != nil {
+		return err
+	}
 	return nil
 }

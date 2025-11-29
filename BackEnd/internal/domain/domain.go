@@ -15,6 +15,7 @@ type User struct {
 	Password string `json:"password,omitempty"` // 密码
 	Status   int    `json:"status,omitempty"`   // 状态：0=正常 1=禁用
 	IsAdmin  bool   `json:"isAdmin,omitempty"`  // 是否管理员
+	Gender   string `json:"gender,omitempty"`   // 测试todo
 }
 
 type RegisterReq struct {
@@ -32,7 +33,12 @@ type LoginReq struct {
 }
 
 type LoginResp struct {
-	Token string `json:"token,omitempty"` // JWT令牌
+	Status       int    `json:"status,omitempty"`       // 状态：1=成功
+	Id           uint   `json:"id,omitempty"`           // 用户ID
+	Name         string `json:"name,omitempty"`         // 用户名
+	Token        string `json:"token,omitempty"`        // JWT令牌
+	AccessExpire int64  `json:"accessExpire,omitempty"` // 过期时间
+	RefreshAfter int64  `json:"refreshAfter,omitempty"` // 刷新时间
 }
 
 type UserInfoResp struct {
@@ -49,4 +55,16 @@ type UpdateProfileReq struct {
 type UpdatePasswordReq struct {
 	OldPwd string `json:"oldPwd" binding:"required"`       // 旧密码
 	NewPwd string `json:"newPwd" binding:"required,min=6"` // 新密码（最少6位）
+}
+
+type UserListReq struct {
+	Ids   []string `json:"ids,omitempty"`   // 用户ID列表
+	Name  string   `json:"name,omitempty"`  // 用户名模糊搜索
+	Page  int      `json:"page,omitempty"`  // 页码
+	Count int      `json:"count,omitempty"` // 每页数量
+}
+
+type UserListResp struct {
+	Count int64  `json:"count"` // 总记录数
+	Data  []User `json:"data"`  // 用户列表
 }

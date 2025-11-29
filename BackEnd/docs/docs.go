@@ -104,7 +104,7 @@ const docTemplate = `{
                                 "data": {
                                     "$ref": "#/definitions/types.LoginResp"
                                 },
-                                "message": {
+                                "msg": {
                                     "type": "string"
                                 }
                             }
@@ -118,7 +118,7 @@ const docTemplate = `{
                                 "code": {
                                     "type": "integer"
                                 },
-                                "message": {
+                                "msg": {
                                     "type": "string"
                                 }
                             }
@@ -132,7 +132,82 @@ const docTemplate = `{
                                 "code": {
                                     "type": "integer"
                                 },
-                                "message": {
+                                "msg": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/user/password": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "修改当前登录用户的密码",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "修改密码",
+                "parameters": [
+                    {
+                        "description": "密码信息",
+                        "name": "req",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/types.UpdatePasswordReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "code": {
+                                    "type": "integer"
+                                },
+                                "msg": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "code": {
+                                    "type": "integer"
+                                },
+                                "msg": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "code": {
+                                    "type": "integer"
+                                },
+                                "msg": {
                                     "type": "string"
                                 }
                             }
@@ -266,16 +341,16 @@ const docTemplate = `{
         "types.LoginReq": {
             "type": "object",
             "required": [
-                "password",
-                "username"
+                "name",
+                "password"
             ],
             "properties": {
-                "password": {
-                    "description": "密码",
+                "name": {
+                    "description": "用户名",
                     "type": "string"
                 },
-                "username": {
-                    "description": "用户名",
+                "password": {
+                    "description": "密码",
                     "type": "string"
                 }
             }
@@ -292,16 +367,16 @@ const docTemplate = `{
         "types.RegisterReq": {
             "type": "object",
             "required": [
-                "password",
-                "username"
+                "name",
+                "password"
             ],
             "properties": {
-                "password": {
-                    "description": "密码",
+                "name": {
+                    "description": "用户名",
                     "type": "string"
                 },
-                "username": {
-                    "description": "用户名",
+                "password": {
+                    "description": "密码",
                     "type": "string"
                 }
             }
@@ -311,6 +386,24 @@ const docTemplate = `{
             "properties": {
                 "message": {
                     "description": "响应消息",
+                    "type": "string"
+                }
+            }
+        },
+        "types.UpdatePasswordReq": {
+            "type": "object",
+            "required": [
+                "newPwd",
+                "oldPwd"
+            ],
+            "properties": {
+                "newPwd": {
+                    "description": "新密码（最少6位）",
+                    "type": "string",
+                    "minLength": 6
+                },
+                "oldPwd": {
+                    "description": "旧密码",
                     "type": "string"
                 }
             }
@@ -333,11 +426,12 @@ const docTemplate = `{
                 "isAdmin": {
                     "type": "boolean"
                 },
+                "name": {
+                    "description": "用户名",
+                    "type": "string"
+                },
                 "status": {
                     "type": "integer"
-                },
-                "username": {
-                    "type": "string"
                 }
             }
         }

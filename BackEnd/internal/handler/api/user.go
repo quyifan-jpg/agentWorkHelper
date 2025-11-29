@@ -38,6 +38,7 @@ func (h *User) InitRegister(engine *gin.Engine) {
 	{
 		g1.GET("/info", h.Info)
 		g1.PUT("/profile", h.UpdateProfile)
+		g1.POST("/password", h.ChangePassword)
 	}
 }
 
@@ -59,7 +60,7 @@ func (h *User) Register(ctx *gin.Context) {
 		return
 	}
 
-	err := h.user.Register(ctx.Request.Context(), req.Username, req.Password)
+	err := h.user.Register(ctx.Request.Context(), req.Name, req.Password)
 	if err != nil {
 		httpx.FailWithErr(ctx, err)
 		return
@@ -75,9 +76,9 @@ func (h *User) Register(ctx *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        req  body      types.LoginReq  true  "登录信息"
-// @Success      200  {object}  object{code=int,message=string,data=types.LoginResp}
-// @Failure      400  {object}  object{code=int,message=string}
-// @Failure      401  {object}  object{code=int,message=string}
+// @Success      200  {object}  object{code=int,msg=string,data=types.LoginResp}
+// @Failure      400  {object}  object{code=int,msg=string}
+// @Failure      401  {object}  object{code=int,msg=string}
 // @Router       /v1/user/login [post]
 func (h *User) Login(ctx *gin.Context) {
 	var req types.LoginReq
@@ -87,7 +88,7 @@ func (h *User) Login(ctx *gin.Context) {
 		return
 	}
 
-	token, err := h.user.Login(ctx.Request.Context(), req.Username, req.Password)
+	token, err := h.user.Login(ctx.Request.Context(), req.Name, req.Password)
 	if err != nil {
 		httpx.Unauthorized(ctx, err.Error())
 		return
@@ -154,5 +155,39 @@ func (h *User) UpdateProfile(ctx *gin.Context) {
 	}
 
 	httpx.SuccessWithMessage(ctx, "更新成功", nil)
+}
+
+// ChangePassword 修改密码
+// @Summary      修改密码
+// @Description  修改当前登录用户的密码
+// @Tags         user
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        req  body      types.UpdatePasswordReq  true  "密码信息"
+// @Success      200  {object}  object{code=int,msg=string}
+// @Failure      400  {object}  object{code=int,msg=string}
+// @Failure      401  {object}  object{code=int,msg=string}
+// @Router       /v1/user/password [post]
+func (h *User) ChangePassword(ctx *gin.Context) {
+	// 从 JWT token 中获取当前用户 ID
+	userID, err := token.GetUserIDFromGin(ctx)
+	if err != nil {
+		httpx.Unauthorized(ctx, err.Error())
+		return
+	}
+	// 绑定并验证请求参数
+	var req types.UpdatePasswordReq
+	if err := httpx.BindAndValidate(ctx, &req); err != nil {
+		httpx.BadRequest(ctx, err.Error())
+		return
+	}
+	// 调用业务逻辑层修改密码
+	err = h.user.ChangePassword(ctx.Request.Context(), userID, req.OldPwd, req.NewPwd)
+	if err != nil {
+		httpx.FailWithErr(ctx, err)
+		return
+	}
+	httpx.SuccessWithMessage(ctx, "密码修改成功", nil)
 }
 

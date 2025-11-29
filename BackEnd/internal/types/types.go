@@ -12,7 +12,7 @@ type IdResp struct {
 }
 
 type LoginReq struct {
-	Username string `json:"username" binding:"required"` // 用户名
+	Name     string `json:"name" binding:"required"`     // 用户名
 	Password string `json:"password" binding:"required"` // 密码
 }
 
@@ -21,12 +21,17 @@ type LoginResp struct {
 }
 
 type RegisterReq struct {
-	Username string `json:"username" binding:"required"` // 用户名
+	Name     string `json:"name" binding:"required"`     // 用户名
 	Password string `json:"password" binding:"required"` // 密码
 }
 
 type RegisterResp struct {
 	Message string `json:"message,omitempty"` // 响应消息
+}
+
+type UpdatePasswordReq struct {
+	OldPwd string `json:"oldPwd" binding:"required"`       // 旧密码
+	NewPwd string `json:"newPwd" binding:"required,min=6"` // 新密码（最少6位）
 }
 
 type UpdateProfileReq struct {
@@ -42,8 +47,8 @@ type User struct {
 }
 
 type UserInfoResp struct {
-	Id       uint   `json:"id,omitempty"`
-	Username string `json:"username,omitempty"`
-	Status   int    `json:"status,omitempty"`
-	IsAdmin  bool   `json:"isAdmin,omitempty"`
+	Id      uint   `json:"id,omitempty"`
+	Name    string `json:"name,omitempty"` // 用户名
+	Status  int    `json:"status,omitempty"`
+	IsAdmin bool   `json:"isAdmin,omitempty"`
 }

@@ -6,36 +6,36 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Response 统一响应结构
+// Response 统一响应结构（适配前端格式）
 type Response struct {
-	Code    int         `json:"code"`
-	Message string      `json:"message"`
-	Data    interface{} `json:"data,omitempty"`
+	Code int         `json:"code"`    // 200 表示成功，其他表示失败
+	Msg  string      `json:"msg"`     // 响应消息
+	Data interface{} `json:"data,omitempty"`
 }
 
 // Success 成功响应
 func Success(ctx *gin.Context, data interface{}) {
 	ctx.JSON(http.StatusOK, Response{
-		Code:    0,
-		Message: "success",
-		Data:    data,
+		Code: 200,
+		Msg:  "success",
+		Data: data,
 	})
 }
 
 // SuccessWithMessage 带消息的成功响应
 func SuccessWithMessage(ctx *gin.Context, message string, data interface{}) {
 	ctx.JSON(http.StatusOK, Response{
-		Code:    0,
-		Message: message,
-		Data:    data,
+		Code: 200,
+		Msg:  message,
+		Data: data,
 	})
 }
 
 // Fail 失败响应
 func Fail(ctx *gin.Context, code int, message string) {
-	ctx.JSON(code, Response{
-		Code:    code,
-		Message: message,
+	ctx.JSON(http.StatusOK, Response{
+		Code: code,
+		Msg:  message,
 	})
 }
 
@@ -46,12 +46,12 @@ func FailWithErr(ctx *gin.Context, err error) {
 
 // BadRequest 400 错误响应
 func BadRequest(ctx *gin.Context, message string) {
-	Fail(ctx, http.StatusBadRequest, message)
+	Fail(ctx, 400, message)
 }
 
 // Unauthorized 401 错误响应
 func Unauthorized(ctx *gin.Context, message string) {
-	Fail(ctx, http.StatusUnauthorized, message)
+	Fail(ctx, 401, message)
 }
 
 // NotFound 404 错误响应

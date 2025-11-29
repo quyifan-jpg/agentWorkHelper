@@ -70,16 +70,21 @@
             "schema": {
               "type": "object",
               "required": [
+                "name",
                 "username",
                 "password"
               ],
               "properties": {
+                "name": {
+                  "description": "用户名（前端使用）",
+                  "type": "string"
+                },
                 "password": {
                   "description": "密码",
                   "type": "string"
                 },
                 "username": {
-                  "description": "用户名",
+                  "description": "用户名（兼容）",
                   "type": "string"
                 }
               }
@@ -98,6 +103,51 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/password": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "schemes": [
+          "https"
+        ],
+        "summary": "UpdatePassword",
+        "operationId": "v1/UserUpdatePassword",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "oldPwd",
+                "newPwd"
+              ],
+              "properties": {
+                "newPwd": {
+                  "description": "新密码（最少6位）",
+                  "type": "string"
+                },
+                "oldPwd": {
+                  "description": "旧密码",
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {}
           }
         }
       }
@@ -196,7 +246,7 @@
       }
     }
   },
-  "x-date": "2025-11-28 17:24:54",
+  "x-date": "2025-11-28 20:52:26",
   "x-description": "This is a goctl generated swagger file.",
   "x-github": "https://github.com/zeromicro/go-zero",
   "x-go-zero-doc": "https://go-zero.dev/",

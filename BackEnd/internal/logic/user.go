@@ -16,6 +16,7 @@ type UserLogic interface {
 	Login(ctx context.Context, username, password string) (string, error)
 	GetInfo(ctx context.Context, userID uint) (interface{}, error)
 	UpdateProfile(ctx context.Context, userID uint, name string) error
+	ChangePassword(ctx context.Context, userID uint, oldPassword, newPassword string) error
 }
 
 type userLogic struct {
@@ -23,7 +24,7 @@ type userLogic struct {
 }
 
 // NewUserLogic 创建用户业务逻辑实例
-func NewUserLogic(svcCtx *svc.ServiceContext) UserLogic {
+func NewUser(svcCtx *svc.ServiceContext) UserLogic {
 	return &userLogic{
 		svcCtx: svcCtx,
 	}
@@ -82,7 +83,7 @@ func (l *userLogic) GetInfo(ctx context.Context, userID uint) (interface{}, erro
 
 	return map[string]interface{}{
 		"id":       user.ID,
-		"username": user.Name,
+		"name":     user.Name,
 		"status":   user.Status,
 		"isAdmin":  user.IsAdmin,
 	}, nil
@@ -102,6 +103,34 @@ func (l *userLogic) UpdateProfile(ctx context.Context, userID uint, name string)
 	user.Name = name
 	if err := l.svcCtx.DB.WithContext(ctx).Save(&user).Error; err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// ChangePassword 修改密码
+func (l *userLogic) ChangePassword(ctx context.Context, userID uint, oldPassword, newPassword string) error {
+	// 查找用户
+	var user model.User
+	if err := l.svcCtx.DB.WithContext(ctx).Where("id = ?", userID).First(&user).Error; err != nil {
+		return errors.New("user not found")
+	}
+
+	// 验证旧密码
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(oldPassword)); err != nil {
+		return errors.New("old password is incorrect")
+	}
+
+	// 加密新密码
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return errors.New("failed to encrypt new password")
+	}
+
+	// 更新密码
+	user.Password = string(hashedPassword)
+	if err := l.svcCtx.DB.WithContext(ctx).Save(&user).Error; err != nil {
+		return errors.New("failed to update password")
 	}
 
 	return nil

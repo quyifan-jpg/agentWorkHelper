@@ -2,15 +2,15 @@ basePath: /v1
 definitions:
   types.LoginReq:
     properties:
+      name:
+        description: 用户名
+        type: string
       password:
         description: 密码
         type: string
-      username:
-        description: 用户名
-        type: string
     required:
+    - name
     - password
-    - username
     type: object
   types.LoginResp:
     properties:
@@ -20,21 +20,34 @@ definitions:
     type: object
   types.RegisterReq:
     properties:
+      name:
+        description: 用户名
+        type: string
       password:
         description: 密码
         type: string
-      username:
-        description: 用户名
-        type: string
     required:
+    - name
     - password
-    - username
     type: object
   types.RegisterResp:
     properties:
       message:
         description: 响应消息
         type: string
+    type: object
+  types.UpdatePasswordReq:
+    properties:
+      newPwd:
+        description: 新密码（最少6位）
+        minLength: 6
+        type: string
+      oldPwd:
+        description: 旧密码
+        type: string
+    required:
+    - newPwd
+    - oldPwd
     type: object
   types.UpdateProfileReq:
     properties:
@@ -48,10 +61,11 @@ definitions:
         type: integer
       isAdmin:
         type: boolean
+      name:
+        description: 用户名
+        type: string
       status:
         type: integer
-      username:
-        type: string
     type: object
 host: localhost:8889
 info:
@@ -116,7 +130,7 @@ paths:
                 type: integer
               data:
                 $ref: '#/definitions/types.LoginResp'
-              message:
+              msg:
                 type: string
             type: object
         "400":
@@ -125,7 +139,7 @@ paths:
             properties:
               code:
                 type: integer
-              message:
+              msg:
                 type: string
             type: object
         "401":
@@ -134,10 +148,57 @@ paths:
             properties:
               code:
                 type: integer
-              message:
+              msg:
                 type: string
             type: object
       summary: 用户登录
+      tags:
+      - user
+  /v1/user/password:
+    post:
+      consumes:
+      - application/json
+      description: 修改当前登录用户的密码
+      parameters:
+      - description: 密码信息
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/types.UpdatePasswordReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              msg:
+                type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            properties:
+              code:
+                type: integer
+              msg:
+                type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              code:
+                type: integer
+              msg:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 修改密码
       tags:
       - user
   /v1/user/profile:

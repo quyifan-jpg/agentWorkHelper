@@ -5,20 +5,18 @@ import (
 	"BackEnd/internal/svc"
 )
 
-// initHandler 初始化所有 Handler
-func initHandler(svcCtx *svc.ServiceContext) []Handler {
-	// 初始化业务逻辑层
+func initHandler(svc *svc.ServiceContext) []Handler {
+	// new logics
 	var (
-		userLogic = logic.NewUserLogic(svcCtx)
+		userLogic = logic.NewUser(svc)
 	)
 
-	// 初始化 Handler
+	// new handlers
 	var (
-		user = NewUser(svcCtx, userLogic)
+		user = NewUser(svc, userLogic)
 	)
 
 	return []Handler{
 		user,
 	}
 }
-

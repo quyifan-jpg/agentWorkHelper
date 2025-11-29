@@ -19,7 +19,7 @@ type (
 	}
 	// 注册请求
 	RegisterReq {
-		Username string `json:"username" binding:"required"` // 用户名
+		Name     string `json:"name" binding:"required"` // 用户名
 		Password string `json:"password" binding:"required"` // 密码
 	}
 	// 注册响应
@@ -28,7 +28,7 @@ type (
 	}
 	// 登录请求
 	LoginReq {
-		Username string `json:"username" binding:"required"` // 用户名
+		Name     string `json:"name" binding:"required"` // 用户名
 		Password string `json:"password" binding:"required"` // 密码
 	}
 	// 登录响应
@@ -37,14 +37,19 @@ type (
 	}
 	// 用户信息响应
 	UserInfoResp {
-		Id       uint   `json:"id,omitempty"`
-		Username string `json:"username,omitempty"`
-		Status   int    `json:"status,omitempty"`
-		IsAdmin  bool   `json:"isAdmin,omitempty"`
+		Id      uint   `json:"id,omitempty"`
+		Name    string `json:"name,omitempty"` // 用户名
+		Status  int    `json:"status,omitempty"`
+		IsAdmin bool   `json:"isAdmin,omitempty"`
 	}
 	// 更新用户资料请求
 	UpdateProfileReq {
 		Name string `json:"name,omitempty"` // 用户名
+	}
+	// 修改密码请求
+	UpdatePasswordReq {
+		OldPwd string `json:"oldPwd" binding:"required"` // 旧密码
+		NewPwd string `json:"newPwd" binding:"required,min=6"` // 新密码（最少6位）
 	}
 )
 
@@ -73,5 +78,8 @@ service User {
 
 	@handler UpdateProfile
 	put /profile (UpdateProfileReq)
+
+	@handler UpdatePassword
+	post /password (UpdatePasswordReq)
 }
 

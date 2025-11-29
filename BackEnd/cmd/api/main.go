@@ -6,11 +6,13 @@ import (
 	"BackEnd/internal/handler/api"
 	"BackEnd/internal/model"
 	"BackEnd/internal/svc"
+	"context"
 	"flag"
 	"fmt"
 
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/viper"
@@ -44,6 +46,11 @@ func main() {
 		panic(err)
 	}
 
+	// 初始化 root 用户
+	if err := initRootUser(svcCtx); err != nil {
+		panic(fmt.Errorf("failed to init root user: %w", err))
+	}
+
 	// 创建 API Handler
 	apiHandler := api.NewApiHandler(svcCtx)
 
@@ -65,4 +72,38 @@ func main() {
 	if err := apiHandler.Run(); err != nil {
 		panic(err)
 	}
+}
+
+// initRootUser 初始化 root 管理员用户
+func initRootUser(svcCtx *svc.ServiceContext) error {
+	ctx := context.Background()
+
+	// 检查是否已存在 root 用户
+	var count int64
+	svcCtx.DB.WithContext(ctx).Model(&model.User{}).Where("name = ?", "root").Count(&count)
+	if count > 0 {
+		fmt.Println("Root user already exists, skipping initialization")
+		return nil
+	}
+
+	// 加密密码 "123456"
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte("123456"), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	// 创建 root 用户
+	rootUser := &model.User{
+		Name:     "root",
+		Password: string(hashedPassword),
+		Status:   0,      // 0: normal
+		IsAdmin:  true,   // 设置为管理员
+	}
+
+	if err := svcCtx.DB.WithContext(ctx).Create(rootUser).Error; err != nil {
+		return fmt.Errorf("failed to create root user: %w", err)
+	}
+
+	fmt.Println("Root user initialized successfully (username: root, password: 123456)")
+	return nil
 }

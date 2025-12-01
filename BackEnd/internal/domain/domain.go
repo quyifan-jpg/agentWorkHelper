@@ -68,3 +68,98 @@ type UserListResp struct {
 	Count int64  `json:"count"` // 总记录数
 	Data  []User `json:"data"`  // 用户列表
 }
+
+type Department struct {
+	Id        uint   `json:"id"`
+	Name      string `json:"name"`
+	LeaderId  uint   `json:"leaderId"`
+	ParentId  uint   `json:"parentId"`
+	CreatedAt int64  `json:"createdAt"`
+}
+
+type DepartmentListReq struct {
+	Name string `form:"name,omitempty"`
+}
+
+type DepartmentListResp struct {
+	List []*Department `json:"list"`
+}
+
+type CreateDepartmentReq struct {
+	Name     string `json:"name"`
+	LeaderId uint   `json:"leaderId,omitempty"`
+	ParentId uint   `json:"parentId,omitempty"`
+}
+
+type UpdateDepartmentReq struct {
+	Id       uint   `json:"id"`
+	Name     string `json:"name,omitempty"`
+	LeaderId uint   `json:"leaderId,omitempty"`
+	ParentId uint   `json:"parentId,omitempty"`
+}
+
+type AddDepartmentUserReq struct {
+	DepartmentId uint   `json:"departmentId"`
+	UserIds      []uint `json:"userIds"`
+}
+
+type Todo struct {
+	Id          uint          `json:"id"`
+	CreatorId   uint          `json:"creatorId"`
+	CreatorName string        `json:"creatorName"`
+	Title       string        `json:"title"`
+	Desc        string        `json:"desc"`
+	DeadlineAt  int64         `json:"deadlineAt"`
+	Status      int           `json:"status"`
+	TodoStatus  int           `json:"todoStatus"`
+	Records     []*TodoRecord `json:"records,omitempty"`
+	Executors   []*User       `json:"executors,omitempty"`
+	CreatedAt   int64         `json:"createdAt"`
+}
+
+type TodoRecord struct {
+	Id        uint   `json:"id"`
+	TodoId    uint   `json:"todoId"`
+	UserId    uint   `json:"userId"`
+	UserName  string `json:"userName"`
+	Content   string `json:"content"`
+	Image     string `json:"image"`
+	CreatedAt int64  `json:"createdAt"`
+}
+
+type CreateTodoReq struct {
+	Title       string `json:"title"`
+	Desc        string `json:"desc,omitempty"`
+	DeadlineAt  int64  `json:"deadlineAt,omitempty"`
+	ExecutorIds []uint `json:"executorIds,omitempty"`
+}
+
+type UpdateTodoReq struct {
+	Id          uint   `json:"id"`
+	Title       string `json:"title,omitempty"`
+	Desc        string `json:"desc,omitempty"`
+	DeadlineAt  int64  `json:"deadlineAt,omitempty"`
+	ExecutorIds []uint `json:"executorIds,omitempty"`
+}
+
+type TodoListReq struct {
+	Page      int   `form:"page,omitempty"`
+	Count     int   `form:"count,omitempty"`
+	StartTime int64 `form:"startTime,omitempty"`
+	EndTime   int64 `form:"endTime,omitempty"`
+}
+
+type TodoListResp struct {
+	Count int64   `json:"count"`
+	List  []*Todo `json:"list"`
+}
+
+type FinishTodoReq struct {
+	TodoId uint `json:"todoId"`
+}
+
+type CreateTodoRecordReq struct {
+	TodoId  uint   `json:"todoId"`
+	Content string `json:"content,omitempty"`
+	Image   string `json:"image,omitempty"`
+}

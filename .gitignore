@@ -30,6 +30,12 @@ yarn-error.log
 vendor/
 go.work
 
+# Go build artifacts (executables without extension)
+BackEnd/BackEnd
+BackEnd/main
+**/BackEnd
+**/main
+
 # Build output
 dist/
 build/
@@ -45,4 +51,4 @@ tmp/
 
 # Project specific
 upload/
-AIWorkHelper/*
+AIWorkHelper/

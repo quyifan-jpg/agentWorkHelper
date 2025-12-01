@@ -4,6 +4,8 @@ syntax = "v1"
 // 导入其他 API 文件
 import "base.api" // base.api: 包含基础的通用数据结构
 import "user.api" // user.api: 包含用户相关的接口定义
+import "department.api"
+import "todo.api"
 
 // 项目基本信息配置
 info (

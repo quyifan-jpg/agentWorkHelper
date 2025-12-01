@@ -1,11 +1,12 @@
 package svc
 
 import (
-	"BackEnd/internal/config"
-	"BackEnd/internal/middleware"
+"BackEnd/internal/config"
+"BackEnd/internal/middleware"
+"BackEnd/internal/model"
 
-	"gorm.io/driver/mysql"
-	"gorm.io/gorm"
+"gorm.io/driver/mysql"
+"gorm.io/gorm"
 )
 
 type ServiceContext struct {
@@ -32,6 +33,18 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		if err != nil {
 			panic(err)
 		}
+	}
+
+	// 自动迁移表结构
+	if err := db.AutoMigrate(
+&model.User{},
+		&model.Department{},
+		&model.DepartmentUser{},
+		&model.Todo{},
+		&model.TodoRecord{},
+		&model.UserTodo{},
+	); err != nil {
+		panic(err)
 	}
 
 	return &ServiceContext{

@@ -12,6 +12,9 @@ import (
 	"BackEnd/internal/svc"
 	"BackEnd/pkg/timeutil"
 	"BackEnd/pkg/token"
+	"BackEnd/pkg/xerr"
+
+	"github.com/rs/zerolog/log"
 )
 
 type Approval interface {
@@ -39,7 +42,8 @@ func (l *approval) Info(ctx context.Context, req *domain.IdPathReq) (resp *domai
 		Preload("Approvers").
 		Preload("Approvers.User").
 		First(&approval, req.Id).Error; err != nil {
-		return nil, err
+		log.Error().Err(err).Str("id", req.Id).Msg("failed to find approval info")
+		return nil, xerr.New(err)
 	}
 
 	// 转换基础信息
@@ -134,14 +138,14 @@ func (l *approval) Create(ctx context.Context, req *domain.Approval) (resp *doma
 		if req.UserId != "" {
 			uid, err := strconv.Atoi(req.UserId)
 			if err != nil {
-				return nil, errors.New("invalid user_id format")
+				return nil, xerr.WithMessage(err, "invalid user_id format")
 			}
 			userID = uint(uid)
 		}
 	}
 
 	if userID == 0 {
-		return nil, errors.New("user_id is required")
+		return nil, xerr.New(errors.New("user_id is required"))
 	}
 
 	// Create basic approval object
@@ -214,13 +218,15 @@ func (l *approval) Create(ctx context.Context, req *domain.Approval) (resp *doma
 	// Get User Name for Title
 	var user model.User
 	if err := l.svcCtx.DB.WithContext(ctx).First(&user, userID).Error; err != nil {
-		return nil, err
+		log.Error().Err(err).Uint("userID", userID).Msg("failed to find user for approval title")
+		return nil, xerr.New(err)
 	}
 	approval.Title = fmt.Sprintf("%s 提交的 %s", user.Name, approval.Type.ToString())
 	approval.Abstract = abstract
 
 	if err := l.svcCtx.DB.WithContext(ctx).Create(approval).Error; err != nil {
-		return nil, err
+		log.Error().Err(err).Msg("failed to create approval")
+		return nil, xerr.New(err)
 	}
 
 	// Save Approvers
@@ -242,7 +248,8 @@ func (l *approval) Create(ctx context.Context, req *domain.Approval) (resp *doma
 		}
 		if len(approvers) > 0 {
 			if err := l.svcCtx.DB.WithContext(ctx).Create(&approvers).Error; err != nil {
-				return nil, err
+				log.Error().Err(err).Msg("failed to create approvers")
+				return nil, xerr.New(err)
 			}
 		}
 	}
@@ -255,13 +262,14 @@ func (l *approval) Create(ctx context.Context, req *domain.Approval) (resp *doma
 func (l *approval) Dispose(ctx context.Context, req *domain.DisposeReq) (err error) {
 	userID, err := token.GetUserID(ctx)
 	if err != nil {
-		return err
+		return xerr.New(err)
 	}
 
 	// 1. Check if approval exists
 	var approval model.Approval
 	if err := l.svcCtx.DB.WithContext(ctx).Preload("Approvers").First(&approval, req.ApprovalId).Error; err != nil {
-		return err
+		log.Error().Err(err).Str("approvalId", req.ApprovalId).Msg("failed to find approval for dispose")
+		return xerr.New(err)
 	}
 
 	// 2. Find the approver record for current user
@@ -274,18 +282,19 @@ func (l *approval) Dispose(ctx context.Context, req *domain.DisposeReq) (err err
 	}
 
 	if currentApprover == nil {
-		return errors.New("you are not an approver for this request")
+		return xerr.New(errors.New("you are not an approver for this request"))
 	}
 
 	if currentApprover.Status != model.Processed {
-		return errors.New("you have already processed this request")
+		return xerr.New(errors.New("you have already processed this request"))
 	}
 
 	// 3. Update approver status
 	currentApprover.Status = model.ApprovalStatus(req.Status)
 	currentApprover.Reason = req.Reason
 	if err := l.svcCtx.DB.WithContext(ctx).Save(currentApprover).Error; err != nil {
-		return err
+		log.Error().Err(err).Msg("failed to update approver status")
+		return xerr.New(err)
 	}
 
 	// 4. Update approval status
@@ -311,7 +320,8 @@ func (l *approval) Dispose(ctx context.Context, req *domain.DisposeReq) (err err
 	}
 
 	if err := l.svcCtx.DB.WithContext(ctx).Save(&approval).Error; err != nil {
-		return err
+		log.Error().Err(err).Msg("failed to update approval status")
+		return xerr.New(err)
 	}
 
 	return nil
@@ -328,6 +338,12 @@ func (l *approval) List(ctx context.Context, req *domain.ApprovalListReq) (resp 
 		count = 10
 	}
 	offset := (page - 1) * count
+
+	// Force use current user ID from token to match AIWorkHelper behavior
+	uid, err := token.GetUserID(ctx)
+	if err == nil && uid > 0 {
+		req.UserId = strconv.Itoa(int(uid))
+	}
 
 	// 2. 构建查询
 	db := l.svcCtx.DB.WithContext(ctx).Model(&model.Approval{})
@@ -349,18 +365,35 @@ func (l *approval) List(ctx context.Context, req *domain.ApprovalListReq) (resp 
 	// 3. 查询总数
 	var total int64
 	if err = db.Count(&total).Error; err != nil {
-		return nil, err
+		log.Error().Err(err).Msg("failed to count approvals")
+		return nil, xerr.New(err)
 	}
 
 	// 4. 查询列表数据
 	var approvals []*model.Approval
-	if err = db.Order("id desc").Offset(offset).Limit(count).Find(&approvals).Error; err != nil {
-		return nil, err
+	if err = db.Preload("Approvers").Order("id desc").Offset(offset).Limit(count).Find(&approvals).Error; err != nil {
+		log.Error().Err(err).Msg("failed to list approvals")
+		return nil, xerr.New(err)
 	}
 
 	// 5. 组装响应
 	list := make([]*domain.ApprovalList, 0, len(approvals))
 	for _, v := range approvals {
+		var participatingId string
+		if req.UserId != "" {
+			uid, _ := strconv.Atoi(req.UserId)
+			for _, a := range v.Approvers {
+				if int(a.UserID) == uid {
+					// Assuming ParticipatingId refers to the Approver record ID or UserID?
+					// AIWorkHelper likely uses it to identify the 'task' for the user.
+					// Let's use Approver ID (which is unique for this user-approval pair).
+					// But wait, Approver ID is uint.
+					participatingId = strconv.Itoa(int(a.UserID))
+					break
+				}
+			}
+		}
+
 		list = append(list, &domain.ApprovalList{
 			Id:              strconv.Itoa(int(v.ID)),
 			Type:            int(v.Type),
@@ -368,7 +401,7 @@ func (l *approval) List(ctx context.Context, req *domain.ApprovalListReq) (resp 
 			Title:           v.Title,
 			Abstract:        v.Abstract,
 			CreateId:        strconv.Itoa(int(v.UserID)),
-			ParticipatingId: "", // 暂不处理
+			ParticipatingId: participatingId,
 		})
 	}
 

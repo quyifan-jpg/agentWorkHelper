@@ -7,8 +7,10 @@ import (
 	"context"
 	"strconv"
 
+	"BackEnd/pkg/xerr"
 	"strings"
 
+	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 )
 
@@ -58,7 +60,8 @@ func (l *departmentLogic) Soa(ctx context.Context, req *domain.DepartmentListReq
 	}
 
 	if err := db.Find(&depts).Error; err != nil {
-		return nil, err
+		log.Error().Err(err).Msg("failed to find departments")
+		return nil, xerr.New(err)
 	}
 
 	// 1. Convert to domain objects and store in map
@@ -107,7 +110,8 @@ func (l *departmentLogic) Soa(ctx context.Context, req *domain.DepartmentListReq
 func (l *departmentLogic) Info(ctx context.Context, req *domain.IdPathReq) (*domain.Department, error) {
 	dept := &model.Department{}
 	if err := l.svcCtx.DB.WithContext(ctx).First(dept, req.Id).Error; err != nil {
-		return nil, err
+		log.Error().Err(err).Str("id", req.Id).Msg("failed to find department info")
+		return nil, xerr.New(err)
 	}
 	return &domain.Department{
 		Id:       strconv.Itoa(int(dept.ID)),
@@ -127,13 +131,34 @@ func (l *departmentLogic) Create(ctx context.Context, req *domain.Department) er
 		LeaderID: uint(leaderID),
 		ParentID: uint(parentID),
 	}
-	return l.svcCtx.DB.WithContext(ctx).Create(dept).Error
+
+	if parentID > 0 {
+		var parent model.Department
+		if err := l.svcCtx.DB.WithContext(ctx).First(&parent, parentID).Error; err != nil {
+			return xerr.New(err)
+		}
+		dept.Level = parent.Level + 1
+		if parent.ParentPath == "" {
+			dept.ParentPath = strconv.Itoa(int(parent.ID))
+		} else {
+			dept.ParentPath = parent.ParentPath + "-" + strconv.Itoa(int(parent.ID))
+		}
+	} else {
+		dept.Level = 0
+		dept.ParentPath = ""
+	}
+
+	if err := l.svcCtx.DB.WithContext(ctx).Create(dept).Error; err != nil {
+		log.Error().Err(err).Msg("failed to create department")
+		return xerr.New(err)
+	}
+	return nil
 }
 
 func (l *departmentLogic) Edit(ctx context.Context, req *domain.Department) error {
 	dept := &model.Department{}
 	if err := l.svcCtx.DB.WithContext(ctx).First(dept, req.Id).Error; err != nil {
-		return err
+		return xerr.New(err)
 	}
 	leaderID, _ := strconv.Atoi(req.LeaderId)
 	parentID, _ := strconv.Atoi(req.ParentId)
@@ -141,11 +166,19 @@ func (l *departmentLogic) Edit(ctx context.Context, req *domain.Department) erro
 	dept.Name = req.Name
 	dept.LeaderID = uint(leaderID)
 	dept.ParentID = uint(parentID)
-	return l.svcCtx.DB.WithContext(ctx).Save(dept).Error
+	if err := l.svcCtx.DB.WithContext(ctx).Save(dept).Error; err != nil {
+		log.Error().Err(err).Msg("failed to update department")
+		return xerr.New(err)
+	}
+	return nil
 }
 
 func (l *departmentLogic) Delete(ctx context.Context, req *domain.IdPathReq) error {
-	return l.svcCtx.DB.WithContext(ctx).Delete(&model.Department{}, req.Id).Error
+	if err := l.svcCtx.DB.WithContext(ctx).Delete(&model.Department{}, req.Id).Error; err != nil {
+		log.Error().Err(err).Str("id", req.Id).Msg("failed to delete department")
+		return xerr.New(err)
+	}
+	return nil
 }
 
 func (l *departmentLogic) SetDepartmentUsers(ctx context.Context, req *domain.SetDepartmentUser) error {
@@ -154,7 +187,7 @@ func (l *departmentLogic) SetDepartmentUsers(ctx context.Context, req *domain.Se
 		deptID, _ := strconv.Atoi(req.DepId)
 		// Delete existing
 		if err := tx.Where("department_id = ?", deptID).Delete(&model.DepartmentUser{}).Error; err != nil {
-			return err
+			return xerr.New(err)
 		}
 		// Add new
 		var users []model.DepartmentUser
@@ -167,7 +200,7 @@ func (l *departmentLogic) SetDepartmentUsers(ctx context.Context, req *domain.Se
 		}
 		if len(users) > 0 {
 			if err := tx.Create(&users).Error; err != nil {
-				return err
+				return xerr.New(err)
 			}
 		}
 		return nil
@@ -191,7 +224,8 @@ func (l *departmentLogic) AddDepartmentUser(ctx context.Context, req *domain.Add
 	}
 	// Use FirstOrCreate to avoid duplicate error
 	if err := l.svcCtx.DB.WithContext(ctx).FirstOrCreate(&user, user).Error; err != nil {
-		return err
+		log.Error().Err(err).Msg("failed to add user to department")
+		return xerr.New(err)
 	}
 
 	// 3. Recursively add to parent departments
@@ -205,7 +239,8 @@ func (l *departmentLogic) AddDepartmentUser(ctx context.Context, req *domain.Add
 			if err := l.svcCtx.DB.WithContext(ctx).FirstOrCreate(&pUser, pUser).Error; err != nil {
 				// Log error but continue? Or return error?
 				// For now, return error to be safe
-				return err
+				log.Error().Err(err).Msg("failed to add user to parent department")
+				return xerr.New(err)
 			}
 		}
 	}
@@ -220,12 +255,13 @@ func (l *departmentLogic) RemoveDepartmentUser(ctx context.Context, req *domain.
 	// 1. Check if department exists
 	var dept model.Department
 	if err := l.svcCtx.DB.WithContext(ctx).First(&dept, deptID).Error; err != nil {
-		return err
+		return xerr.New(err)
 	}
 
 	// 2. Remove from current department
 	if err := l.svcCtx.DB.WithContext(ctx).Where("department_id = ? AND user_id = ?", deptID, uid).Delete(&model.DepartmentUser{}).Error; err != nil {
-		return err
+		log.Error().Err(err).Msg("failed to remove user from department")
+		return xerr.New(err)
 	}
 
 	// 3. Recursively check and remove from parent departments
@@ -237,7 +273,7 @@ func (l *departmentLogic) RemoveDepartmentUser(ctx context.Context, req *domain.
 		// Get all departments this user belongs to
 		var userDepts []model.DepartmentUser
 		if err := l.svcCtx.DB.WithContext(ctx).Where("user_id = ?", uid).Find(&userDepts).Error; err != nil {
-			return err
+			return xerr.New(err)
 		}
 		userDeptIDs := make(map[uint]bool)
 		for _, ud := range userDepts {
@@ -247,7 +283,7 @@ func (l *departmentLogic) RemoveDepartmentUser(ctx context.Context, req *domain.
 		// Get all departments to check parent relationships
 		var allDepts []model.Department
 		if err := l.svcCtx.DB.WithContext(ctx).Find(&allDepts).Error; err != nil {
-			return err
+			return xerr.New(err)
 		}
 		deptMap := make(map[uint]*model.Department)
 		for i := range allDepts {
@@ -274,7 +310,8 @@ func (l *departmentLogic) RemoveDepartmentUser(ctx context.Context, req *domain.
 			if !stillInParent {
 				// Remove from parent
 				if err := l.svcCtx.DB.WithContext(ctx).Where("department_id = ? AND user_id = ?", pid, uid).Delete(&model.DepartmentUser{}).Error; err != nil {
-					return err
+					log.Error().Err(err).Msg("failed to remove user from parent department")
+					return xerr.New(err)
 				}
 				// Also remove from local map so further parents don't see it?
 				// No, we are iterating parents. If we remove from parent A, parent B (parent of A) might still need to be removed.
@@ -314,21 +351,85 @@ func (l *departmentLogic) RemoveDepartmentUser(ctx context.Context, req *domain.
 }
 
 func (l *departmentLogic) DepartmentUserInfo(ctx context.Context, req *domain.IdPathReq) (*domain.Department, error) {
-	// Find department for user
+	// 1. Get the user's direct department
 	var deptUser model.DepartmentUser
-	if err := l.svcCtx.DB.WithContext(ctx).Where("user_id = ?", req.Id).First(&deptUser).Error; err != nil {
-		return nil, err
+	// Note: A user might belong to multiple departments. The API seems to assume one "main" department or just returns one.
+	// The guide says: "返回包含完整上级部门层级的组织架构" (Return organization chart containing full upper-level department hierarchy).
+	// Let's pick the one with the deepest level or just the first one found.
+	if err := l.svcCtx.DB.WithContext(ctx).Where("user_id = ?", req.Id).Order("department_id desc").First(&deptUser).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			// User is not in any department, return empty or error?
+			// Guide says: "根据用户ID查找该用户所属的部门信息"
+			// If not found, maybe return 404 or empty data?
+			// Let's return a clear error for now.
+			return nil, xerr.New(err)
+		}
+		log.Error().Err(err).Str("userId", req.Id).Msg("failed to find department user info")
+		return nil, xerr.New(err)
 	}
 
-	var dept model.Department
-	if err := l.svcCtx.DB.WithContext(ctx).First(&dept, deptUser.DepartmentID).Error; err != nil {
-		return nil, err
+	var currentDept model.Department
+	if err := l.svcCtx.DB.WithContext(ctx).First(&currentDept, deptUser.DepartmentID).Error; err != nil {
+		return nil, xerr.New(err)
 	}
 
-	return &domain.Department{
-		Id:       strconv.Itoa(int(dept.ID)),
-		Name:     dept.Name,
-		LeaderId: strconv.Itoa(int(dept.LeaderID)),
-		ParentId: strconv.Itoa(int(dept.ParentID)),
-	}, nil
+	// 2. Build the path to root
+	// We need to fetch all parents up to root.
+	// ParentPath contains ids like "1-5-7".
+	var pathIds []uint
+	if currentDept.ParentPath != "" {
+		pathIds = model.ParseParentPath(currentDept.ParentPath)
+	}
+	// Add current dept ID
+	pathIds = append(pathIds, currentDept.ID)
+
+	// 3. Fetch all departments in the path
+	var depts []model.Department
+	if err := l.svcCtx.DB.WithContext(ctx).Where("id IN ?", pathIds).Find(&depts).Error; err != nil {
+		return nil, xerr.New(err)
+	}
+
+	// 4. Construct the nested structure
+	// We need to nest them: Root -> Child -> ... -> Current
+	deptMap := make(map[uint]*domain.Department)
+	for _, d := range depts {
+		deptMap[d.ID] = &domain.Department{
+			Id:         strconv.Itoa(int(d.ID)),
+			Name:       d.Name,
+			LeaderId:   strconv.Itoa(int(d.LeaderID)),
+			ParentId:   strconv.Itoa(int(d.ParentID)),
+			ParentPath: d.ParentPath,
+			Level:      d.Level,
+			Leader:     d.Leader,
+			Child:      make([]*domain.Department, 0),
+		}
+	}
+
+	var root *domain.Department
+	// The root of this specific path is the node whose ID is the first in pathIds
+	if len(pathIds) > 0 {
+		rootID := pathIds[0]
+		root = deptMap[rootID]
+	}
+
+	// Link children based on path order
+	// pathIds is ordered from root to leaf (e.g., [1, 5, 8])
+	for i := 0; i < len(pathIds)-1; i++ {
+		parentID := pathIds[i]
+		childID := pathIds[i+1]
+		if parent, ok := deptMap[parentID]; ok {
+			if child, ok := deptMap[childID]; ok {
+				// Check if child is already added to avoid duplicates (though we create fresh map)
+				// Just append
+				parent.Child = append(parent.Child, child)
+			}
+		}
+	}
+
+	// If root is nil (shouldn't happen if data is consistent), return current
+	if root == nil {
+		root = deptMap[currentDept.ID]
+	}
+
+	return root, nil
 }

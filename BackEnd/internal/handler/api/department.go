@@ -10,18 +10,20 @@ import (
 )
 
 type Department struct {
-	logic logic.DepartmentLogic
+	logic  logic.DepartmentLogic
+	svcCtx *svc.ServiceContext
 }
 
 func NewDepartment(svcCtx *svc.ServiceContext, l logic.DepartmentLogic) *Department {
 	return &Department{
-		logic: l,
+		logic:  l,
+		svcCtx: svcCtx,
 	}
 }
 
 func (h *Department) InitRegister(r *gin.Engine) {
 	group := r.Group("/v1/dep")
-	// group.Use(middleware.JwtAuth()) // TODO: Add auth middleware
+	group.Use(h.svcCtx.Jwt.Handler)
 	{
 		group.GET("/soa", h.Soa)
 		group.GET("/:id", h.Info)

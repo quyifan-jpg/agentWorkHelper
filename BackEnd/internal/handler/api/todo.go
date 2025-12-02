@@ -11,18 +11,20 @@ import (
 )
 
 type Todo struct {
-	logic logic.TodoLogic
+	logic  logic.TodoLogic
+	svcCtx *svc.ServiceContext
 }
 
 func NewTodo(svcCtx *svc.ServiceContext, l logic.TodoLogic) *Todo {
 	return &Todo{
-		logic: l,
+		logic:  l,
+		svcCtx: svcCtx,
 	}
 }
 
 func (h *Todo) InitRegister(r *gin.Engine) {
 	group := r.Group("/v1/todo")
-	// group.Use(middleware.JwtAuth()) // TODO: Add auth middleware
+	group.Use(h.svcCtx.Jwt.Handler)
 	{
 		group.POST("", h.Create)
 		group.PUT("", h.Update)
@@ -50,11 +52,12 @@ func (h *Todo) Create(ctx *gin.Context) {
 		userID = 1
 	}
 
-	if err := h.logic.Create(ctx.Request.Context(), userID, &req); err != nil {
+	resp, err := h.logic.Create(ctx.Request.Context(), userID, &req)
+	if err != nil {
 		httpx.FailWithErr(ctx, err)
 		return
 	}
-	httpx.SuccessWithMessage(ctx, "创建成功", nil)
+	httpx.SuccessWithMessage(ctx, "创建成功", resp)
 }
 
 func (h *Todo) Update(ctx *gin.Context) {

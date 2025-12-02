@@ -5,11 +5,13 @@ import (
 	"BackEnd/internal/model"
 	"BackEnd/internal/svc"
 	"BackEnd/pkg/jwt"
+	"BackEnd/pkg/xerr"
 	"context"
 	"errors"
 	"strconv"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -44,13 +46,14 @@ func (l *userLogic) Register(ctx context.Context, username, password string) err
 	var count int64
 	l.svcCtx.DB.WithContext(ctx).Model(&model.User{}).Where("name = ?", username).Count(&count)
 	if count > 0 {
-		return errors.New("username already exists")
+		return xerr.New(errors.New("username already exists"))
 	}
 
 	// 加密密码
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return err
+		log.Error().Err(err).Msg("failed to generate password hash")
+		return xerr.New(err)
 	}
 
 	// 创建用户
@@ -60,7 +63,8 @@ func (l *userLogic) Register(ctx context.Context, username, password string) err
 	}
 
 	if err := l.svcCtx.DB.WithContext(ctx).Create(user).Error; err != nil {
-		return err
+		log.Error().Err(err).Msg("failed to create user")
+		return xerr.New(err)
 	}
 
 	return nil
@@ -70,18 +74,19 @@ func (l *userLogic) Register(ctx context.Context, username, password string) err
 func (l *userLogic) Login(ctx context.Context, username, password string) (*domain.LoginResp, error) {
 	var user model.User
 	if err := l.svcCtx.DB.WithContext(ctx).Where("name = ?", username).First(&user).Error; err != nil {
-		return nil, errors.New("user not found")
+		return nil, xerr.New(errors.New("user not found"))
 	}
 
 	// 验证密码
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
-		return nil, errors.New("invalid password")
+		return nil, xerr.New(errors.New("invalid password"))
 	}
 
 	// 生成 JWT token
 	token, err := jwt.GenerateToken(user.ID, l.svcCtx.Config.Auth.Secret, l.svcCtx.Config.Auth.Expire)
 	if err != nil {
-		return nil, err
+		log.Error().Err(err).Msg("failed to generate token")
+		return nil, xerr.New(err)
 	}
 
 	// 返回完整登录信息
@@ -100,7 +105,7 @@ func (l *userLogic) Login(ctx context.Context, username, password string) (*doma
 func (l *userLogic) GetInfo(ctx context.Context, userID uint) (interface{}, error) {
 	var user model.User
 	if err := l.svcCtx.DB.WithContext(ctx).Where("id = ?", userID).First(&user).Error; err != nil {
-		return nil, errors.New("user not found")
+		return nil, xerr.New(errors.New("user not found"))
 	}
 
 	return map[string]interface{}{
@@ -119,12 +124,13 @@ func (l *userLogic) UpdateProfile(ctx context.Context, userID uint, name string)
 
 	var user model.User
 	if err := l.svcCtx.DB.WithContext(ctx).Where("id = ?", userID).First(&user).Error; err != nil {
-		return errors.New("user not found")
+		return xerr.New(errors.New("user not found"))
 	}
 
 	user.Name = name
 	if err := l.svcCtx.DB.WithContext(ctx).Save(&user).Error; err != nil {
-		return err
+		log.Error().Err(err).Msg("failed to update user profile")
+		return xerr.New(err)
 	}
 
 	return nil
@@ -135,24 +141,26 @@ func (l *userLogic) ChangePassword(ctx context.Context, userID uint, oldPassword
 	// 查找用户
 	var user model.User
 	if err := l.svcCtx.DB.WithContext(ctx).Where("id = ?", userID).First(&user).Error; err != nil {
-		return errors.New("user not found")
+		return xerr.New(errors.New("user not found"))
 	}
 
 	// 验证旧密码
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(oldPassword)); err != nil {
-		return errors.New("old password is incorrect")
+		return xerr.New(errors.New("old password is incorrect"))
 	}
 
 	// 加密新密码
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 	if err != nil {
-		return errors.New("failed to encrypt new password")
+		log.Error().Err(err).Msg("failed to encrypt new password")
+		return xerr.New(errors.New("failed to encrypt new password"))
 	}
 
 	// 更新密码
 	user.Password = string(hashedPassword)
 	if err := l.svcCtx.DB.WithContext(ctx).Save(&user).Error; err != nil {
-		return errors.New("failed to update password")
+		log.Error().Err(err).Msg("failed to update password")
+		return xerr.New(errors.New("failed to update password"))
 	}
 
 	return nil
@@ -162,7 +170,7 @@ func (l *userLogic) ChangePassword(ctx context.Context, userID uint, oldPassword
 func (l *userLogic) GetInfoByID(ctx context.Context, userID string) (*domain.User, error) {
 	var user model.User
 	if err := l.svcCtx.DB.WithContext(ctx).Where("id = ?", userID).First(&user).Error; err != nil {
-		return nil, errors.New("user not found")
+		return nil, xerr.New(errors.New("user not found"))
 	}
 
 	return &domain.User{
@@ -208,14 +216,16 @@ func (l *userLogic) List(ctx context.Context, req *domain.UserListReq) (*domain.
 	// 获取总数
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
-		return nil, err
+		log.Error().Err(err).Msg("failed to count users")
+		return nil, xerr.New(err)
 	}
 
 	// 分页查询
 	var users []model.User
 	offset := (page - 1) * count
 	if err := query.Offset(offset).Limit(count).Find(&users).Error; err != nil {
-		return nil, err
+		log.Error().Err(err).Msg("failed to list users")
+		return nil, xerr.New(err)
 	}
 
 	// 转换为响应格式
@@ -240,7 +250,7 @@ func (l *userLogic) Create(ctx context.Context, user *domain.User) error {
 	var count int64
 	l.svcCtx.DB.WithContext(ctx).Model(&model.User{}).Where("name = ?", user.Name).Count(&count)
 	if count > 0 {
-		return errors.New("user already exists")
+		return xerr.New(errors.New("user already exists"))
 	}
 
 	// 设置默认密码
@@ -252,7 +262,8 @@ func (l *userLogic) Create(ctx context.Context, user *domain.User) error {
 	// 加密密码
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return err
+		log.Error().Err(err).Msg("failed to encrypt password")
+		return xerr.New(err)
 	}
 
 	// 创建用户
@@ -263,7 +274,8 @@ func (l *userLogic) Create(ctx context.Context, user *domain.User) error {
 	}
 
 	if err := l.svcCtx.DB.WithContext(ctx).Create(newUser).Error; err != nil {
-		return err
+		log.Error().Err(err).Msg("failed to create user")
+		return xerr.New(err)
 	}
 
 	return nil
@@ -273,7 +285,7 @@ func (l *userLogic) Create(ctx context.Context, user *domain.User) error {
 func (l *userLogic) Update(ctx context.Context, user *domain.User) error {
 	var existingUser model.User
 	if err := l.svcCtx.DB.WithContext(ctx).Where("id = ?", user.Id).First(&existingUser).Error; err != nil {
-		return errors.New("user not found")
+		return xerr.New(errors.New("user not found"))
 	}
 
 	// 更新字段
@@ -286,13 +298,15 @@ func (l *userLogic) Update(ctx context.Context, user *domain.User) error {
 	if user.Password != "" {
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 		if err != nil {
-			return err
+			log.Error().Err(err).Msg("failed to encrypt new password")
+			return xerr.New(err)
 		}
 		existingUser.Password = string(hashedPassword)
 	}
 
 	if err := l.svcCtx.DB.WithContext(ctx).Save(&existingUser).Error; err != nil {
-		return err
+		log.Error().Err(err).Msg("failed to update user")
+		return xerr.New(err)
 	}
 
 	return nil
@@ -302,7 +316,8 @@ func (l *userLogic) Update(ctx context.Context, user *domain.User) error {
 func (l *userLogic) Delete(ctx context.Context, userID string) error {
 	// 使用 GORM 软删除
 	if err := l.svcCtx.DB.WithContext(ctx).Delete(&model.User{}, userID).Error; err != nil {
-		return err
+		log.Error().Err(err).Str("id", userID).Msg("failed to delete user")
+		return xerr.New(err)
 	}
 	return nil
 }

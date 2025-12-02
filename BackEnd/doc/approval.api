@@ -33,23 +33,24 @@ type (
 		Reason    string  `json:"reason,omitempty" mapstructure:"omitempty"` //请假原由
 	}
 	Approval {
-		Id          string    `json:"id,omitempty"`
-		UserId      string    `json:"userId,omitempty"`
-		No          string    `json:"no,omitempty"`
-		Type        int       `json:"type,omitempty"`
-		Status      int       `json:"status,omitempty"`
-		Title       string    `json:"title,omitempty"`
-		Abstract    string    `json:"abstract,omitempty"`
-		Reason      string    `json:"reason,omitempty"`
-		FinishAt    int64     `json:"finishAt,omitempty"`
-		FinishDay   int64     `json:"finishDay,omitempty"`
-		FinishMonth int64     `json:"finishMonth,omitempty"`
-		FinishYeas  int64     `json:"finishYeas,omitempty"`
-		MakeCard    *MakeCard `json:"makeCard,omitempty"`
-		Leave       *Leave    `json:"leave,omitempty"`
-		GoOut       *GoOut    `json:"goOut,omitempty"`
-		UpdateAt    int64     `json:"updateAt,omitempty"`
-		CreateAt    int64     `json:"createAt,omitempty"`
+		Id          string      `json:"id,omitempty"`
+		UserId      string      `json:"userId,omitempty"`
+		No          string      `json:"no,omitempty"`
+		Type        int         `json:"type,omitempty"`
+		Status      int         `json:"status,omitempty"`
+		Title       string      `json:"title,omitempty"`
+		Abstract    string      `json:"abstract,omitempty"`
+		Reason      string      `json:"reason,omitempty"`
+		FinishAt    int64       `json:"finishAt,omitempty"`
+		FinishDay   int64       `json:"finishDay,omitempty"`
+		FinishMonth int64       `json:"finishMonth,omitempty"`
+		FinishYeas  int64       `json:"finishYeas,omitempty"`
+		MakeCard    *MakeCard   `json:"makeCard,omitempty"`
+		Leave       *Leave      `json:"leave,omitempty"`
+		GoOut       *GoOut      `json:"goOut,omitempty"`
+		UpdateAt    int64       `json:"updateAt,omitempty"`
+		CreateAt    int64       `json:"createAt,omitempty"`
+		Approvers   []*Approver `json:"approvers,omitempty"`
 	}
 	ApprovalInfoResp {
 		Id          string      `json:"id"`

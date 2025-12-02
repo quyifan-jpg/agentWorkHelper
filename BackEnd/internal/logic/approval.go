@@ -2,11 +2,14 @@ package logic
 
 import (
 	"context"
+	"errors"
 	"strconv"
+	"time"
 
 	"BackEnd/internal/domain"
 	"BackEnd/internal/model"
 	"BackEnd/internal/svc"
+	"BackEnd/pkg/token"
 )
 
 type Approval interface {
@@ -52,7 +55,6 @@ func (l *approval) Info(ctx context.Context, req *domain.IdPathReq) (resp *domai
 		FinishYeas:  approval.FinishYeas,
 		UpdateAt:    approval.UpdatedAt.Unix(),
 		CreateAt:    approval.CreatedAt.Unix(),
-	
 	}
 
 	// 转换申请人信息
@@ -116,13 +118,166 @@ func (l *approval) Info(ctx context.Context, req *domain.IdPathReq) (resp *domai
 }
 
 func (l *approval) Create(ctx context.Context, req *domain.Approval) (resp *domain.IdResp, err error) {
-	return
+	userID, err := strconv.Atoi(req.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	approval := &model.Approval{
+		No:       req.No,
+		Title:    req.Title,
+		Reason:   req.Reason,
+		Type:     req.Type,
+		Status:   req.Status,
+		Abstract: req.Abstract,
+		UserID:   uint(userID),
+	}
+
+	if err := l.svcCtx.DB.WithContext(ctx).Create(approval).Error; err != nil {
+		return nil, err
+	}
+
+	// Save Approvers
+	if len(req.Approvers) > 0 {
+		var approvers []model.Approver
+		for _, a := range req.Approvers {
+			uid, _ := strconv.Atoi(a.UserId)
+			approvers = append(approvers, model.Approver{
+				ApprovalID: approval.ID,
+				UserID:     uint(uid),
+				Status:     0,
+			})
+		}
+		if err := l.svcCtx.DB.WithContext(ctx).Create(&approvers).Error; err != nil {
+			return nil, err
+		}
+	}
+
+	return &domain.IdResp{
+		Id: strconv.Itoa(int(approval.ID)),
+	}, nil
 }
 
 func (l *approval) Dispose(ctx context.Context, req *domain.DisposeReq) (err error) {
-	return
+	userID, err := token.GetUserID(ctx)
+	if err != nil {
+		return err
+	}
+
+	// 1. Check if approval exists
+	var approval model.Approval
+	if err := l.svcCtx.DB.WithContext(ctx).Preload("Approvers").First(&approval, req.ApprovalId).Error; err != nil {
+		return err
+	}
+
+	// 2. Find the approver record for current user
+	var currentApprover *model.Approver
+	for i := range approval.Approvers {
+		if approval.Approvers[i].UserID == userID {
+			currentApprover = &approval.Approvers[i]
+			break
+		}
+	}
+
+	if currentApprover == nil {
+		return errors.New("you are not an approver for this request")
+	}
+
+	if currentApprover.Status != 0 {
+		return errors.New("you have already processed this request")
+	}
+
+	// 3. Update approver status
+	currentApprover.Status = req.Status
+	currentApprover.Reason = req.Reason
+	if err := l.svcCtx.DB.WithContext(ctx).Save(currentApprover).Error; err != nil {
+		return err
+	}
+
+	// 4. Update approval status
+	// Logic:
+	// - If Reject (2) -> Approval Rejected (2)
+	// - If Pass (1) -> Check if all passed -> Approval Passed (1)
+
+	if req.Status == 2 {
+		approval.Status = 2
+	} else if req.Status == 1 {
+		allPassed := true
+		for _, a := range approval.Approvers {
+			if a.Status != 1 {
+				allPassed = false
+				break
+			}
+		}
+		if allPassed {
+			approval.Status = 1
+			approval.FinishAt = time.Now()
+		}
+	}
+
+	if err := l.svcCtx.DB.WithContext(ctx).Save(&approval).Error; err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (l *approval) List(ctx context.Context, req *domain.ApprovalListReq) (resp *domain.ApprovalListResp, err error) {
-	return
+	// 1. 处理分页参数
+	page := req.Page
+	if page < 1 {
+		page = 1
+	}
+	count := req.Count
+	if count < 1 {
+		count = 10
+	}
+	offset := (page - 1) * count
+
+	// 2. 构建查询
+	db := l.svcCtx.DB.WithContext(ctx).Model(&model.Approval{})
+
+	// 过滤条件
+	if req.UserId != "" {
+		userId, _ := strconv.Atoi(req.UserId)
+		if userId > 0 {
+			db = db.Where("user_id = ?", userId)
+		}
+	}
+	if req.Type > 0 {
+		db = db.Where("type = ?", req.Type)
+	}
+
+	// 3. 查询总数
+	var total int64
+	if err = db.Count(&total).Error; err != nil {
+		return nil, err
+	}
+
+	// 4. 查询列表数据
+	var approvals []*model.Approval
+	if err = db.Order("id desc").Offset(offset).Limit(count).Find(&approvals).Error; err != nil {
+		return nil, err
+	}
+
+	// 5. 组装响应
+	list := make([]*domain.ApprovalList, 0, len(approvals))
+	for _, v := range approvals {
+		list = append(list, &domain.ApprovalList{
+			Id:              strconv.Itoa(int(v.ID)),
+			Type:            v.Type,
+			Status:          v.Status,
+			Title:           v.Title,
+			Abstract:        v.Abstract,
+			CreateId:        strconv.Itoa(int(v.UserID)),
+			ParticipatingId: "", // 暂不处理
+		})
+	}
+
+	resp = &domain.ApprovalListResp{
+		Count: total,
+		List:  list,
+	}
+
+	return resp, nil
 }

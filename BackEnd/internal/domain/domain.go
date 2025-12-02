@@ -67,37 +67,59 @@ type UpdateProfileReq struct {
 }
 
 type Department struct {
-	Id        uint   `json:"id"`
-	Name      string `json:"name"`
-	LeaderId  uint   `json:"leaderId"`
-	ParentId  uint   `json:"parentId"`
-	CreatedAt int64  `json:"createdAt"`
+	Id         string        `json:"id,omitempty"`         // 部门ID
+	Name       string        `json:"name,omitempty"`       // 部门名称
+	ParentId   string        `json:"parentId,omitempty"`   // 父部门ID
+	ParentPath string        `json:"parentPath,omitempty"` // 父部门路径
+	Level      int           `json:"level,omitempty"`      // 部门层级
+	LeaderId   string        `json:"leaderId,omitempty"`   // 部门负责人ID
+	Leader     string        `json:"leader,omitempty"`     // 部门负责人姓名
+	Count      int64         `json:"count,omitempty"`      // 部门人数
+	Child      []*Department `json:"child,omitempty"`      // 子部门列表
+}
+
+type DepartmentUser struct {
+	Id       string `json:"id,omitempty"`       // 关联ID
+	UserId   string `json:"user,omitempty"`     // 用户ID
+	DepId    string `json:"dep,omitempty"`      // 部门ID
+	UserName string `json:"userName,omitempty"` // 用户姓名
 }
 
 type DepartmentListReq struct {
-	Name string `form:"name,omitempty"`
+	DepId  string   `json:"depId,omitempty" form:"depId,omitempty" query:"depId,omitempty"`    // 单个部门ID
+	DepIds []string `json:"depIds,omitempty" form:"depIds,omitempty" query:"depIds,omitempty"` // 多个部门ID列表
 }
 
-type DepartmentListResp struct {
-	List []*Department `json:"list"`
+type DepartmentPathReq struct {
+	DepId  string `path:"depId,omitempty"`  // 部门ID路径参数
+	UserId string `path:"userId,omitempty"` // 用户ID路径参数
 }
 
-type CreateDepartmentReq struct {
-	Name     string `json:"name"`
-	LeaderId uint   `json:"leaderId,omitempty"`
-	ParentId uint   `json:"parentId,omitempty"`
+type SetDepartmentUser struct {
+	DepId   string   `json:"depId"`   // 部门ID
+	UserIds []string `json:"userIds"` // 用户ID列表
 }
 
-type UpdateDepartmentReq struct {
-	Id       uint   `json:"id"`
-	Name     string `json:"name,omitempty"`
-	LeaderId uint   `json:"leaderId,omitempty"`
-	ParentId uint   `json:"parentId,omitempty"`
+type AddDepartmentUser struct {
+	DepId  string `json:"depId"`  // 部门ID
+	UserId string `json:"userId"` // 要添加的用户ID
 }
 
-type AddDepartmentUserReq struct {
-	DepartmentId uint   `json:"departmentId"`
-	UserIds      []uint `json:"userIds"`
+type RemoveDepartmentUser struct {
+	DepId  string `json:"depId"`  // 部门ID
+	UserId string `json:"userId"` // 要删除的用户ID
+}
+
+type DepartmentSoaResp struct {
+	Id       string            `json:"id,omitempty"`       // 部门ID
+	Name     string            `json:"name,omitempty"`     // 部门名称
+	ParentId string            `json:"parentId,omitempty"` // 父部门ID
+	Level    int               `json:"level,omitempty"`    // 部门层级
+	LeaderId string            `json:"leaderId,omitempty"` // 负责人ID
+	Leader   string            `json:"leader,omitempty"`   // 负责人姓名
+	Count    int64             `json:"count,omitempty"`    // 部门人数
+	Users    []*DepartmentUser `json:"users,omitempty"`    // 部门用户列表
+	Child    []*Department     `json:"child,omitempty"`    // 子部门列表
 }
 
 type TodoRecord struct {
@@ -193,23 +215,24 @@ type GoOut struct {
 }
 
 type Approval struct {
-	Id          string    `json:"id,omitempty"`
-	UserId      string    `json:"userId,omitempty"`
-	No          string    `json:"no,omitempty"`
-	Type        int       `json:"type,omitempty"`
-	Status      int       `json:"status,omitempty"`
-	Title       string    `json:"title,omitempty"`
-	Abstract    string    `json:"abstract,omitempty"`
-	Reason      string    `json:"reason,omitempty"`
-	FinishAt    int64     `json:"finishAt,omitempty"`
-	FinishDay   int64     `json:"finishDay,omitempty"`
-	FinishMonth int64     `json:"finishMonth,omitempty"`
-	FinishYeas  int64     `json:"finishYeas,omitempty"`
-	MakeCard    *MakeCard `json:"makeCard,omitempty"`
-	Leave       *Leave    `json:"leave,omitempty"`
-	GoOut       *GoOut    `json:"goOut,omitempty"`
-	UpdateAt    int64     `json:"updateAt,omitempty"`
-	CreateAt    int64     `json:"createAt,omitempty"`
+	Id          string      `json:"id,omitempty"`
+	UserId      string      `json:"userId,omitempty"`
+	No          string      `json:"no,omitempty"`
+	Type        int         `json:"type,omitempty"`
+	Status      int         `json:"status,omitempty"`
+	Title       string      `json:"title,omitempty"`
+	Abstract    string      `json:"abstract,omitempty"`
+	Reason      string      `json:"reason,omitempty"`
+	FinishAt    int64       `json:"finishAt,omitempty"`
+	FinishDay   int64       `json:"finishDay,omitempty"`
+	FinishMonth int64       `json:"finishMonth,omitempty"`
+	FinishYeas  int64       `json:"finishYeas,omitempty"`
+	MakeCard    *MakeCard   `json:"makeCard,omitempty"`
+	Leave       *Leave      `json:"leave,omitempty"`
+	GoOut       *GoOut      `json:"goOut,omitempty"`
+	UpdateAt    int64       `json:"updateAt,omitempty"`
+	CreateAt    int64       `json:"createAt,omitempty"`
+	Approvers   []*Approver `json:"approvers,omitempty"`
 }
 
 type ApprovalInfoResp struct {

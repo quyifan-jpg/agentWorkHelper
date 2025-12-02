@@ -1,66 +1,137 @@
 syntax = "v1"
 
 info (
-	title:  "Department API"
-	author: "BackEnd"
+	title: "业务后台"
+	author: "鹏哥"
 )
 
 type (
+	// Department 部门信息结构体
 	Department {
-		Id        uint   `json:"id"`
-		Name      string `json:"name"`
-		LeaderId  uint   `json:"leaderId"`
-		ParentId  uint   `json:"parentId"`
-		CreatedAt int64  `json:"createdAt"`
+		Id         string        `json:"id,omitempty"`         // 部门ID
+		Name       string        `json:"name,omitempty"`       // 部门名称
+		ParentId   string        `json:"parentId,omitempty"`   // 父部门ID
+		ParentPath string        `json:"parentPath,omitempty"` // 父部门路径
+		Level      int           `json:"level,omitempty"`      // 部门层级
+		LeaderId   string        `json:"leaderId,omitempty"`   // 部门负责人ID
+		Leader     string        `json:"leader,omitempty"`     // 部门负责人姓名
+		Count      int64         `json:"count,omitempty"`      // 部门人数
+		Child      []*Department `json:"child,omitempty"`      // 子部门列表
 	}
+
+	// DepartmentUser 部门用户关联信息
+	DepartmentUser {
+		Id       string `json:"id,omitempty"`       // 关联ID
+		UserId   string `json:"user,omitempty"`     // 用户ID
+		DepId    string `json:"dep,omitempty"`      // 部门ID
+		UserName string `json:"userName,omitempty"` // 用户姓名
+	}
+
+	// DepartmentListReq 部门列表查询请求
 	DepartmentListReq {
-		Name string `form:"name,omitempty"`
+		DepId  string   `json:"depId,omitempty" form:"depId,omitempty" query:"depId,omitempty"`   // 单个部门ID
+		DepIds []string `json:"depIds,omitempty" form:"depIds,omitempty" query:"depIds,omitempty"` // 多个部门ID列表
 	}
-	DepartmentListResp {
-		List []*Department `json:"list"`
+
+	// DepartmentPathReq 部门路径请求参数
+	DepartmentPathReq {
+		DepId  string `path:"depId,omitempty"`  // 部门ID路径参数
+		UserId string `path:"userId,omitempty"` // 用户ID路径参数
 	}
-	CreateDepartmentReq {
-		Name     string `json:"name"`
-		LeaderId uint   `json:"leaderId,omitempty"`
-		ParentId uint   `json:"parentId,omitempty"`
+
+	// SetDepartmentUser 设置部门用户请求
+	SetDepartmentUser {
+		DepId   string   `json:"depId"`   // 部门ID
+		UserIds []string `json:"userIds"` // 用户ID列表
 	}
-	UpdateDepartmentReq {
-		Id       uint   `json:"id"`
-		Name     string `json:"name,omitempty"`
-		LeaderId uint   `json:"leaderId,omitempty"`
-		ParentId uint   `json:"parentId,omitempty"`
+
+	// AddDepartmentUser 添加部门员工请求
+	AddDepartmentUser {
+		DepId  string `json:"depId"`  // 部门ID
+		UserId string `json:"userId"` // 要添加的用户ID
 	}
-	AddDepartmentUserReq {
-		DepartmentId uint   `json:"departmentId"`
-		UserIds      []uint `json:"userIds"`
+
+	// RemoveDepartmentUser 删除部门员工请求
+	RemoveDepartmentUser {
+		DepId  string `json:"depId"`  // 部门ID
+		UserId string `json:"userId"` // 要删除的用户ID
+	}
+
+	// DepartmentSoaResp 部门SOA响应结构体
+	DepartmentSoaResp {
+		Id       string             `json:"id,omitempty"`       // 部门ID
+		Name     string             `json:"name,omitempty"`     // 部门名称
+		ParentId string             `json:"parentId,omitempty"` // 父部门ID
+		Level    int                `json:"level,omitempty"`    // 部门层级
+		LeaderId string             `json:"leaderId,omitempty"` // 负责人ID
+		Leader   string             `json:"leader,omitempty"`   // 负责人姓名
+		Count    int64              `json:"count,omitempty"`    // 部门人数
+		Users    []*DepartmentUser  `json:"users,omitempty"`    // 部门用户列表
+		Child    []*Department      `json:"child,omitempty"`    // 子部门列表
 	}
 )
 
-@server (
-	group: v1/department
-	logic: Department
-// middleware: JwtAuth
+// 部门服务配置：启用JWT中间件，路由前缀v1/dep
+@server(
+	middleware: Jwt     // JWT认证中间件
+	group: v1/dep      // 路由组前缀
+	logic: Department  // 业务逻辑包名
 )
 service department {
-	@handler Create
-	post /v1/department (CreateDepartmentReq)
+	@server(
+		handler: Soa                // 处理器方法名
+		logic: Department.Soa       // 业务逻辑方法
+	)
+	get /soa returns(DepartmentSoaResp) // 获取部门SOA信息
 
-	@handler Update
-	put /v1/department (UpdateDepartmentReq)
+	@server(
+		handler: Info               // 处理器方法名
+		logic: Department.Info      // 业务逻辑方法
+	)
+	get /:id(IdPathReq) returns(Department) // 根据ID获取部门详情
 
-	@handler Delete
-	delete /v1/department/:id (IdPathReq)
+	@server(
+		handler: Create             // 处理器方法名
+		logic: Department.Create    // 业务逻辑方法
+	)
+	post / (Department) // 创建新部门
 
-	@handler Get
-	get /v1/department/:id (IdPathReq) returns (Department)
+	@server(
+		handler: Edit               // 处理器方法名
+		logic: Department.Edit      // 业务逻辑方法
+	)
+	put / (Department) // 更新部门信息
 
-	@handler List
-	get /v1/department/list (DepartmentListReq) returns (DepartmentListResp)
+	@server(
+		handler: Delete             // 处理器方法名
+		logic: Department.Delete    // 业务逻辑方法
+	)
+	delete /:id(IdPathReq) // 根据ID删除部门
 
-	@handler AddUser
-	post /v1/department/user (AddDepartmentUserReq)
+	@server(
+		handler: SetDepartmentUsers        // 处理器方法名
+		logic: Department.SetDepartmentUsers // 业务逻辑方法
+	)
+	post /user (SetDepartmentUser) // 设置部门用户关联
 
-	@handler RemoveUser
-	delete /v1/department/user
+	@server(
+		handler: AddDepartmentUser         // 处理器方法名
+		logic: Department.AddDepartmentUser // 业务逻辑方法
+		doc: 添加部门员工（不能添加负责人）
+	)
+	post /user/add (AddDepartmentUser) // 添加部门员工
+
+	@server(
+		handler: RemoveDepartmentUser         // 处理器方法名
+		logic: Department.RemoveDepartmentUser // 业务逻辑方法
+		doc: 删除部门员工（不能删除负责人）
+	)
+	delete /user/remove (RemoveDepartmentUser) // 删除部门员工
+
+	@server(
+		handler: DepartmentUserInfo        // 处理器方法名
+		logic: Department.DepartmentUserInfo // 业务逻辑方法
+		doc: 获取用户的部门信息              // 接口文档说明
+	)
+	get /user/:id(IdPathReq) returns(Department) // 根据用户ID获取部门信息
 }
-

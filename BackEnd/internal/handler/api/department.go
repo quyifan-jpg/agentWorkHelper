@@ -20,21 +20,53 @@ func NewDepartment(svcCtx *svc.ServiceContext, l logic.DepartmentLogic) *Departm
 }
 
 func (h *Department) InitRegister(r *gin.Engine) {
-	group := r.Group("/v1/department")
+	group := r.Group("/v1/dep")
 	// group.Use(middleware.JwtAuth()) // TODO: Add auth middleware
 	{
+		group.GET("/soa", h.Soa)
+		group.GET("/:id", h.Info)
 		group.POST("", h.Create)
-		group.PUT("", h.Update)
+		group.PUT("", h.Edit)
 		group.DELETE("/:id", h.Delete)
-		group.GET("/:id", h.Get)
-		group.GET("/list", h.List)
-		group.POST("/user", h.AddUser)
-		group.DELETE("/user", h.RemoveUser)
+		group.POST("/user", h.SetDepartmentUsers)
+		group.POST("/user/add", h.AddDepartmentUser)
+		group.DELETE("/user/remove", h.RemoveDepartmentUser)
+		group.GET("/user/:id", h.DepartmentUserInfo)
 	}
 }
 
+func (h *Department) Soa(ctx *gin.Context) {
+	var req domain.DepartmentListReq
+	if err := ctx.ShouldBindQuery(&req); err != nil {
+		httpx.BadRequest(ctx, err.Error())
+		return
+	}
+
+	resp, err := h.logic.Soa(ctx.Request.Context(), &req)
+	if err != nil {
+		httpx.FailWithErr(ctx, err)
+		return
+	}
+	httpx.Success(ctx, resp)
+}
+
+func (h *Department) Info(ctx *gin.Context) {
+	var req domain.IdPathReq
+	if err := httpx.BindAndValidate(ctx, &req); err != nil {
+		httpx.BadRequest(ctx, err.Error())
+		return
+	}
+
+	resp, err := h.logic.Info(ctx.Request.Context(), &req)
+	if err != nil {
+		httpx.FailWithErr(ctx, err)
+		return
+	}
+	httpx.Success(ctx, resp)
+}
+
 func (h *Department) Create(ctx *gin.Context) {
-	var req domain.CreateDepartmentReq
+	var req domain.Department
 	if err := httpx.BindAndValidate(ctx, &req); err != nil {
 		httpx.BadRequest(ctx, err.Error())
 		return
@@ -47,14 +79,14 @@ func (h *Department) Create(ctx *gin.Context) {
 	httpx.SuccessWithMessage(ctx, "创建成功", nil)
 }
 
-func (h *Department) Update(ctx *gin.Context) {
-	var req domain.UpdateDepartmentReq
+func (h *Department) Edit(ctx *gin.Context) {
+	var req domain.Department
 	if err := httpx.BindAndValidate(ctx, &req); err != nil {
 		httpx.BadRequest(ctx, err.Error())
 		return
 	}
 
-	if err := h.logic.Update(ctx.Request.Context(), &req); err != nil {
+	if err := h.logic.Edit(ctx.Request.Context(), &req); err != nil {
 		httpx.FailWithErr(ctx, err)
 		return
 	}
@@ -62,67 +94,72 @@ func (h *Department) Update(ctx *gin.Context) {
 }
 
 func (h *Department) Delete(ctx *gin.Context) {
-	idStr := ctx.Param("id")
+	var req domain.IdPathReq
+	if err := httpx.BindAndValidate(ctx, &req); err != nil {
+		httpx.BadRequest(ctx, err.Error())
+		return
+	}
 
-	if err := h.logic.Delete(ctx.Request.Context(), idStr); err != nil {
+	if err := h.logic.Delete(ctx.Request.Context(), &req); err != nil {
 		httpx.FailWithErr(ctx, err)
 		return
 	}
 	httpx.SuccessWithMessage(ctx, "删除成功", nil)
 }
 
-func (h *Department) Get(ctx *gin.Context) {
-	idStr := ctx.Param("id")
-
-	resp, err := h.logic.Get(ctx.Request.Context(), idStr)
-	if err != nil {
-		httpx.FailWithErr(ctx, err)
-		return
-	}
-	httpx.Success(ctx, resp)
-}
-
-func (h *Department) List(ctx *gin.Context) {
-	var req domain.DepartmentListReq
-	if err := ctx.ShouldBindQuery(&req); err != nil {
-		httpx.BadRequest(ctx, err.Error())
-		return
-	}
-
-	resp, err := h.logic.List(ctx.Request.Context(), &req)
-	if err != nil {
-		httpx.FailWithErr(ctx, err)
-		return
-	}
-	httpx.Success(ctx, resp)
-}
-
-func (h *Department) AddUser(ctx *gin.Context) {
-	var req domain.AddDepartmentUserReq
+func (h *Department) SetDepartmentUsers(ctx *gin.Context) {
+	var req domain.SetDepartmentUser
 	if err := httpx.BindAndValidate(ctx, &req); err != nil {
 		httpx.BadRequest(ctx, err.Error())
 		return
 	}
 
-	if err := h.logic.AddUser(ctx.Request.Context(), &req); err != nil {
+	if err := h.logic.SetDepartmentUsers(ctx.Request.Context(), &req); err != nil {
+		httpx.FailWithErr(ctx, err)
+		return
+	}
+	httpx.SuccessWithMessage(ctx, "设置成功", nil)
+}
+
+func (h *Department) AddDepartmentUser(ctx *gin.Context) {
+	var req domain.AddDepartmentUser
+	if err := httpx.BindAndValidate(ctx, &req); err != nil {
+		httpx.BadRequest(ctx, err.Error())
+		return
+	}
+
+	if err := h.logic.AddDepartmentUser(ctx.Request.Context(), &req); err != nil {
 		httpx.FailWithErr(ctx, err)
 		return
 	}
 	httpx.SuccessWithMessage(ctx, "添加成功", nil)
 }
 
-func (h *Department) RemoveUser(ctx *gin.Context) {
-	deptIDStr := ctx.Query("departmentId")
-	userIDStr := ctx.Query("userId")
-
-	if deptIDStr == "" || userIDStr == "" {
-		httpx.BadRequest(ctx, "invalid params")
+func (h *Department) RemoveDepartmentUser(ctx *gin.Context) {
+	var req domain.RemoveDepartmentUser
+	if err := httpx.BindAndValidate(ctx, &req); err != nil {
+		httpx.BadRequest(ctx, err.Error())
 		return
 	}
 
-	if err := h.logic.RemoveUser(ctx.Request.Context(), deptIDStr, userIDStr); err != nil {
+	if err := h.logic.RemoveDepartmentUser(ctx.Request.Context(), &req); err != nil {
 		httpx.FailWithErr(ctx, err)
 		return
 	}
-	httpx.SuccessWithMessage(ctx, "移除成功", nil)
+	httpx.SuccessWithMessage(ctx, "删除成功", nil)
+}
+
+func (h *Department) DepartmentUserInfo(ctx *gin.Context) {
+	var req domain.IdPathReq
+	if err := httpx.BindAndValidate(ctx, &req); err != nil {
+		httpx.BadRequest(ctx, err.Error())
+		return
+	}
+
+	resp, err := h.logic.DepartmentUserInfo(ctx.Request.Context(), &req)
+	if err != nil {
+		httpx.FailWithErr(ctx, err)
+		return
+	}
+	httpx.Success(ctx, resp)
 }

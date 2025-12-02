@@ -31,7 +31,7 @@ func (h *Approval) InitRegister(engine *gin.Engine) {
 
 func (h *Approval) Info(ctx *gin.Context) {
 	var req domain.IdPathReq
-	if err := httpx.BindAndValidate(ctx, &req); err != nil {
+	if err := ctx.ShouldBindUri(&req); err != nil {
 		httpx.FailWithErr(ctx, err)
 		return
 	}
@@ -76,7 +76,7 @@ func (h *Approval) Dispose(ctx *gin.Context) {
 
 func (h *Approval) List(ctx *gin.Context) {
 	var req domain.ApprovalListReq
-	if err := httpx.BindAndValidate(ctx, &req); err != nil {
+	if err := ctx.ShouldBindQuery(&req); err != nil {
 		httpx.FailWithErr(ctx, err)
 		return
 	}

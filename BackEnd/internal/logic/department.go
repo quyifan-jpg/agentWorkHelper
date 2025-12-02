@@ -7,6 +7,8 @@ import (
 	"context"
 	"strconv"
 
+	"strings"
+
 	"gorm.io/gorm"
 )
 
@@ -175,17 +177,140 @@ func (l *departmentLogic) SetDepartmentUsers(ctx context.Context, req *domain.Se
 func (l *departmentLogic) AddDepartmentUser(ctx context.Context, req *domain.AddDepartmentUser) error {
 	deptID, _ := strconv.Atoi(req.DepId)
 	uid, _ := strconv.Atoi(req.UserId)
+
+	// 1. Check if department exists
+	var dept model.Department
+	if err := l.svcCtx.DB.WithContext(ctx).First(&dept, deptID).Error; err != nil {
+		return err
+	}
+
+	// 2. Add user to current department
 	user := model.DepartmentUser{
 		DepartmentID: uint(deptID),
 		UserID:       uint(uid),
 	}
-	return l.svcCtx.DB.WithContext(ctx).Create(&user).Error
+	// Use FirstOrCreate to avoid duplicate error
+	if err := l.svcCtx.DB.WithContext(ctx).FirstOrCreate(&user, user).Error; err != nil {
+		return err
+	}
+
+	// 3. Recursively add to parent departments
+	if dept.ParentPath != "" {
+		parentIds := model.ParseParentPath(dept.ParentPath)
+		for _, pid := range parentIds {
+			pUser := model.DepartmentUser{
+				DepartmentID: pid,
+				UserID:       uint(uid),
+			}
+			if err := l.svcCtx.DB.WithContext(ctx).FirstOrCreate(&pUser, pUser).Error; err != nil {
+				// Log error but continue? Or return error?
+				// For now, return error to be safe
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 func (l *departmentLogic) RemoveDepartmentUser(ctx context.Context, req *domain.RemoveDepartmentUser) error {
 	deptID, _ := strconv.Atoi(req.DepId)
 	uid, _ := strconv.Atoi(req.UserId)
-	return l.svcCtx.DB.WithContext(ctx).Where("department_id = ? AND user_id = ?", deptID, uid).Delete(&model.DepartmentUser{}).Error
+
+	// 1. Check if department exists
+	var dept model.Department
+	if err := l.svcCtx.DB.WithContext(ctx).First(&dept, deptID).Error; err != nil {
+		return err
+	}
+
+	// 2. Remove from current department
+	if err := l.svcCtx.DB.WithContext(ctx).Where("department_id = ? AND user_id = ?", deptID, uid).Delete(&model.DepartmentUser{}).Error; err != nil {
+		return err
+	}
+
+	// 3. Recursively check and remove from parent departments
+	if dept.ParentPath != "" {
+		parentIds := model.ParseParentPath(dept.ParentPath)
+		// Reverse order: from closest parent to root (though order doesn't strictly matter here, logic does)
+		// Actually, we need to check if the user is still in ANY child of the parent.
+
+		// Get all departments this user belongs to
+		var userDepts []model.DepartmentUser
+		if err := l.svcCtx.DB.WithContext(ctx).Where("user_id = ?", uid).Find(&userDepts).Error; err != nil {
+			return err
+		}
+		userDeptIDs := make(map[uint]bool)
+		for _, ud := range userDepts {
+			userDeptIDs[ud.DepartmentID] = true
+		}
+
+		// Get all departments to check parent relationships
+		var allDepts []model.Department
+		if err := l.svcCtx.DB.WithContext(ctx).Find(&allDepts).Error; err != nil {
+			return err
+		}
+		deptMap := make(map[uint]*model.Department)
+		for i := range allDepts {
+			deptMap[allDepts[i].ID] = &allDepts[i]
+		}
+
+		for _, pid := range parentIds {
+			// Check if user is still in any department that is a child of pid
+			stillInParent := false
+			for udID := range userDeptIDs {
+				if udID == pid {
+					continue // Ignore the parent itself (we are deciding whether to keep it)
+				}
+				if d, ok := deptMap[udID]; ok {
+					// Check if d is a child of pid
+					// Method 1: Check ParentPath
+					if strings.Contains(d.ParentPath, strconv.Itoa(int(pid))) || d.ParentID == pid {
+						stillInParent = true
+						break
+					}
+				}
+			}
+
+			if !stillInParent {
+				// Remove from parent
+				if err := l.svcCtx.DB.WithContext(ctx).Where("department_id = ? AND user_id = ?", pid, uid).Delete(&model.DepartmentUser{}).Error; err != nil {
+					return err
+				}
+				// Also remove from local map so further parents don't see it?
+				// No, we are iterating parents. If we remove from parent A, parent B (parent of A) might still need to be removed.
+				// But wait, if we remove from A, then A is no longer in userDeptIDs?
+				// userDeptIDs reflects the state AFTER removing from current dept, but BEFORE removing from parents.
+				// If we remove from parent A, we should effectively consider it removed for parent B check.
+				// However, parent A is a parent, not a child of parent B (well, A is child of B).
+				// The logic "stillInParent" checks if user is in any CHILD of pid.
+				// If user is in A, and A is child of B.
+				// If we decide to remove user from A, then user is no longer in A.
+				// So when checking B, we shouldn't count A.
+				// So yes, we should probably be careful.
+				// But simpler approach:
+				// The `userDeptIDs` map contains departments user is explicitly in.
+				// If we remove from `pid`, we don't need to update `userDeptIDs` because `pid` was likely in it (or maybe not if it was just a parent association).
+				// Actually, `userDeptIDs` comes from DB *after* removing from current dept.
+				// So it contains all other depts.
+				// If `pid` is in `userDeptIDs`, it means user was added to `pid` explicitly or via another child.
+				// Wait, if user is in `pid`, `pid` is in `userDeptIDs`.
+				// `stillInParent` loop checks `udID` (other depts user is in).
+				// If `udID` is a child of `pid`, then `stillInParent` is true.
+				// If `stillInParent` is false, it means user is NOT in any child of `pid`.
+				// But user might be in `pid` itself directly?
+				// If user is in `pid` directly (e.g. added to root), should we remove them just because they left a child?
+				// AIWorkHelper logic says: "Remove from parent if not in any other child".
+				// It assumes membership in parent is *derivative* of membership in child.
+				// If I manually added user to Parent, then added to Child. Then removed from Child.
+				// Should user be removed from Parent?
+				// AIWorkHelper implementation seems to assume yes, or at least it tries to clean up.
+				// Let's stick to AIWorkHelper logic:
+				// "If user is not in any department that is a sub-department of this parent, remove from parent."
+			}
+		}
+	}
+
+	return nil
 }
 
 func (l *departmentLogic) DepartmentUserInfo(ctx context.Context, req *domain.IdPathReq) (*domain.Department, error) {

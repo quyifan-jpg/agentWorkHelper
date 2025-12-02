@@ -82,18 +82,38 @@ func (l *todoLogic) Update(ctx context.Context, userID uint, req *domain.Todo) e
 		return err
 	}
 
-	// Update executors (simplified: delete all and re-add)
+	// Update executors
 	if len(req.ExecuteIds) > 0 {
+		// 1. Get existing executors to preserve status
+		var existing []model.UserTodo
+		if err := tx.Where("todo_id = ?", todo.ID).Find(&existing).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+		statusMap := make(map[uint]int)
+		for _, e := range existing {
+			statusMap[e.UserID] = e.TodoStatus
+		}
+
+		// 2. Delete all
 		if err := tx.Where("todo_id = ?", todo.ID).Delete(&model.UserTodo{}).Error; err != nil {
 			tx.Rollback()
 			return err
 		}
+
+		// 3. Re-add with preserved status
 		var userTodos []model.UserTodo
 		for _, eidStr := range req.ExecuteIds {
 			eid, _ := strconv.ParseUint(eidStr, 10, 64)
+			uid := uint(eid)
+			status := 0 // Default pending
+			if s, ok := statusMap[uid]; ok {
+				status = s
+			}
 			userTodos = append(userTodos, model.UserTodo{
-				TodoID: todo.ID,
-				UserID: uint(eid),
+				TodoID:     todo.ID,
+				UserID:     uid,
+				TodoStatus: status,
 			})
 		}
 		if err := tx.Create(&userTodos).Error; err != nil {
@@ -213,10 +233,31 @@ func (l *todoLogic) List(ctx context.Context, userID uint, req *domain.TodoListR
 }
 
 func (l *todoLogic) Finish(ctx context.Context, userID uint, req *domain.FinishedTodoReq) error {
-	// Update UserTodo status
-	return l.svcCtx.DB.WithContext(ctx).Model(&model.UserTodo{}).
+	// 1. Update UserTodo status
+	if err := l.svcCtx.DB.WithContext(ctx).Model(&model.UserTodo{}).
 		Where("todo_id = ? AND user_id = ?", req.TodoId, userID).
-		Update("todo_status", 1).Error
+		Update("todo_status", 1).Error; err != nil {
+		return err
+	}
+
+	// 2. Check if all executors finished
+	var count int64
+	if err := l.svcCtx.DB.WithContext(ctx).Model(&model.UserTodo{}).
+		Where("todo_id = ? AND todo_status != 1", req.TodoId).
+		Count(&count).Error; err != nil {
+		return err
+	}
+
+	// 3. If all finished (count == 0), update Todo status
+	if count == 0 {
+		if err := l.svcCtx.DB.WithContext(ctx).Model(&model.Todo{}).
+			Where("id = ?", req.TodoId).
+			Update("todo_status", 1).Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (l *todoLogic) CreateRecord(ctx context.Context, userID uint, req *domain.TodoRecord) error {

@@ -52,7 +52,7 @@ func (h *Department) Soa(ctx *gin.Context) {
 
 func (h *Department) Info(ctx *gin.Context) {
 	var req domain.IdPathReq
-	if err := httpx.BindAndValidate(ctx, &req); err != nil {
+	if err := ctx.ShouldBindUri(&req); err != nil {
 		httpx.BadRequest(ctx, err.Error())
 		return
 	}
@@ -95,7 +95,7 @@ func (h *Department) Edit(ctx *gin.Context) {
 
 func (h *Department) Delete(ctx *gin.Context) {
 	var req domain.IdPathReq
-	if err := httpx.BindAndValidate(ctx, &req); err != nil {
+	if err := ctx.ShouldBindUri(&req); err != nil {
 		httpx.BadRequest(ctx, err.Error())
 		return
 	}
@@ -151,7 +151,7 @@ func (h *Department) RemoveDepartmentUser(ctx *gin.Context) {
 
 func (h *Department) DepartmentUserInfo(ctx *gin.Context) {
 	var req domain.IdPathReq
-	if err := httpx.BindAndValidate(ctx, &req); err != nil {
+	if err := ctx.ShouldBindUri(&req); err != nil {
 		httpx.BadRequest(ctx, err.Error())
 		return
 	}

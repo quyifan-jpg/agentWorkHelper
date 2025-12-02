@@ -1,0 +1,66 @@
+syntax = "v1"
+
+info (
+	title:  "Department API"
+	author: "BackEnd"
+)
+
+type (
+	Department {
+		Id        uint   `json:"id"`
+		Name      string `json:"name"`
+		LeaderId  uint   `json:"leaderId"`
+		ParentId  uint   `json:"parentId"`
+		CreatedAt int64  `json:"createdAt"`
+	}
+	DepartmentListReq {
+		Name string `form:"name,omitempty"`
+	}
+	DepartmentListResp {
+		List []*Department `json:"list"`
+	}
+	CreateDepartmentReq {
+		Name     string `json:"name"`
+		LeaderId uint   `json:"leaderId,omitempty"`
+		ParentId uint   `json:"parentId,omitempty"`
+	}
+	UpdateDepartmentReq {
+		Id       uint   `json:"id"`
+		Name     string `json:"name,omitempty"`
+		LeaderId uint   `json:"leaderId,omitempty"`
+		ParentId uint   `json:"parentId,omitempty"`
+	}
+	AddDepartmentUserReq {
+		DepartmentId uint   `json:"departmentId"`
+		UserIds      []uint `json:"userIds"`
+	}
+)
+
+@server (
+	group: v1/department
+	logic: Department
+// middleware: JwtAuth
+)
+service department {
+	@handler Create
+	post /v1/department (CreateDepartmentReq)
+
+	@handler Update
+	put /v1/department (UpdateDepartmentReq)
+
+	@handler Delete
+	delete /v1/department/:id (IdPathReq)
+
+	@handler Get
+	get /v1/department/:id (IdPathReq) returns (Department)
+
+	@handler List
+	get /v1/department/list (DepartmentListReq) returns (DepartmentListResp)
+
+	@handler AddUser
+	post /v1/department/user (AddDepartmentUserReq)
+
+	@handler RemoveUser
+	delete /v1/department/user
+}
+

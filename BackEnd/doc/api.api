@@ -6,10 +6,12 @@ import "base.api" // base.api: 包含基础的通用数据结构
 import "user.api" // user.api: 包含用户相关的接口定义
 import "department.api"
 import "todo.api"
+import "approval.api" // 审批相关接口定义
 
 // 项目基本信息配置
 info (
-	title:  "AIWorkHelper Backend API" // 项目标题
-	author: "BackEnd" // 项目作者
+	title:      "AIWorkHelper Backend API" // 项目标题
+	author:     "BackEnd" // 项目作者
+	serviceMod: "1" // 服务模式
 )
 

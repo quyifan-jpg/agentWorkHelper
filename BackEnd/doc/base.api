@@ -11,5 +11,9 @@ type (
 	IdResp {
 		Id string `json:"id,omitempty"` // json 标签表示 JSON 序列化字段名
 	}
+	IdRespInfo {
+		Code int     `json:"code"`
+		Data *IdResp `json:"data"`
+	}
 )
 

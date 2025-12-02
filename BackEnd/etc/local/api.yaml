@@ -1,8 +1,13 @@
 Name: api
-Addr: 0.0.0.0:8888
+Host: 0.0.0.0
+Port: 8889
 
-MySql:
-  DataSource: "root:root@tcp(127.0.0.1:3306)/test?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
+MySQL:
+  DSN: "root:root@tcp(127.0.0.1:3306)/aiworkhelper?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
+
+Auth:
+  Secret: "your-secret-key"
+  Expire: 86400
 
 Redis:
   Addr: "127.0.0.1:6379"

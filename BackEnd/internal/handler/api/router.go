@@ -1,28 +1,31 @@
 package api
 
 import (
-"BackEnd/internal/logic"
-"BackEnd/internal/svc"
+	"BackEnd/internal/logic"
+	"BackEnd/internal/svc"
 )
 
 func initHandler(svc *svc.ServiceContext) []Handler {
 	// new logics
 	var (
-userLogic = logic.NewUser(svc)
-deptLogic = logic.NewDepartment(svc)
-todoLogic = logic.NewTodo(svc)
-)
+		approvalLogic   = logic.NewApproval(svc)
+		userLogic       = logic.NewUser(svc)
+		departmentLogic = logic.NewDepartment(svc)
+		todoLogic       = logic.NewTodo(svc)
+	)
 
 	// new handlers
 	var (
-user = NewUser(svc, userLogic)
-dept = NewDepartment(svc, deptLogic)
-todo = NewTodo(svc, todoLogic)
-)
+		todo       = NewTodo(svc, todoLogic)
+		approval   = NewApproval(svc, approvalLogic)
+		user       = NewUser(svc, userLogic)
+		department = NewDepartment(svc, departmentLogic)
+	)
 
 	return []Handler{
-		user,
-		dept,
 		todo,
+		approval,
+		user,
+		department,
 	}
 }

@@ -1,9 +1,9 @@
 package logic
 
 import (
+	"BackEnd/internal/domain"
 	"BackEnd/internal/model"
 	"BackEnd/internal/svc"
-	"BackEnd/internal/types"
 	"BackEnd/pkg/jwt"
 	"context"
 	"errors"
@@ -16,15 +16,15 @@ import (
 // UserLogic 用户业务逻辑接口
 type UserLogic interface {
 	Register(ctx context.Context, username, password string) error
-	Login(ctx context.Context, username, password string) (*types.LoginResp, error)
+	Login(ctx context.Context, username, password string) (*domain.LoginResp, error)
 	GetInfo(ctx context.Context, userID uint) (interface{}, error)
-	GetInfoByID(ctx context.Context, userID uint) (*types.UserInfoResp, error)
+	GetInfoByID(ctx context.Context, userID string) (*domain.User, error)
 	UpdateProfile(ctx context.Context, userID uint, name string) error
 	ChangePassword(ctx context.Context, userID uint, oldPassword, newPassword string) error
-	List(ctx context.Context, req *types.UserListReq) (*types.UserListResp, error)
-	Create(ctx context.Context, user *types.User) error
-	Update(ctx context.Context, user *types.User) error
-	Delete(ctx context.Context, userID uint) error
+	List(ctx context.Context, req *domain.UserListReq) (*domain.UserListResp, error)
+	Create(ctx context.Context, user *domain.User) error
+	Update(ctx context.Context, user *domain.User) error
+	Delete(ctx context.Context, userID string) error
 }
 
 type userLogic struct {
@@ -67,7 +67,7 @@ func (l *userLogic) Register(ctx context.Context, username, password string) err
 }
 
 // Login 用户登录
-func (l *userLogic) Login(ctx context.Context, username, password string) (*types.LoginResp, error) {
+func (l *userLogic) Login(ctx context.Context, username, password string) (*domain.LoginResp, error) {
 	var user model.User
 	if err := l.svcCtx.DB.WithContext(ctx).Where("name = ?", username).First(&user).Error; err != nil {
 		return nil, errors.New("user not found")
@@ -86,11 +86,11 @@ func (l *userLogic) Login(ctx context.Context, username, password string) (*type
 
 	// 返回完整登录信息
 	now := time.Now().Unix()
-	return &types.LoginResp{
+	return &domain.LoginResp{
 		Status:       1,
-		Id:           user.ID,
+		Id:           strconv.Itoa(int(user.ID)),
 		Name:         user.Name,
-		Token:        token,
+		AccessToken:  token,
 		AccessExpire: now + l.svcCtx.Config.Auth.Expire,
 		RefreshAfter: now + l.svcCtx.Config.Auth.Expire/2,
 	}, nil
@@ -104,10 +104,10 @@ func (l *userLogic) GetInfo(ctx context.Context, userID uint) (interface{}, erro
 	}
 
 	return map[string]interface{}{
-		"id":       user.ID,
-		"name":     user.Name,
-		"status":   user.Status,
-		"isAdmin":  user.IsAdmin,
+		"id":      user.ID,
+		"name":    user.Name,
+		"status":  user.Status,
+		"isAdmin": user.IsAdmin,
 	}, nil
 }
 
@@ -159,22 +159,21 @@ func (l *userLogic) ChangePassword(ctx context.Context, userID uint, oldPassword
 }
 
 // GetInfoByID 根据ID获取用户信息
-func (l *userLogic) GetInfoByID(ctx context.Context, userID uint) (*types.UserInfoResp, error) {
+func (l *userLogic) GetInfoByID(ctx context.Context, userID string) (*domain.User, error) {
 	var user model.User
 	if err := l.svcCtx.DB.WithContext(ctx).Where("id = ?", userID).First(&user).Error; err != nil {
 		return nil, errors.New("user not found")
 	}
 
-	return &types.UserInfoResp{
-		Id:      user.ID,
-		Name:    user.Name,
-		Status:  user.Status,
-		IsAdmin: user.IsAdmin,
+	return &domain.User{
+		Id:     strconv.Itoa(int(user.ID)),
+		Name:   user.Name,
+		Status: user.Status,
 	}, nil
 }
 
 // List 用户列表（分页 + 搜索）
-func (l *userLogic) List(ctx context.Context, req *types.UserListReq) (*types.UserListResp, error) {
+func (l *userLogic) List(ctx context.Context, req *domain.UserListReq) (*domain.UserListResp, error) {
 	// 设置默认分页参数
 	page := req.Page
 	if page <= 0 {
@@ -220,24 +219,23 @@ func (l *userLogic) List(ctx context.Context, req *types.UserListReq) (*types.Us
 	}
 
 	// 转换为响应格式
-	var userList []types.User
+	var userList []*domain.User
 	for _, u := range users {
-		userList = append(userList, types.User{
-			Id:      u.ID,
-			Name:    u.Name,
-			Status:  u.Status,
-			IsAdmin: u.IsAdmin,
+		userList = append(userList, &domain.User{
+			Id:     strconv.Itoa(int(u.ID)),
+			Name:   u.Name,
+			Status: u.Status,
 		})
 	}
 
-	return &types.UserListResp{
+	return &domain.UserListResp{
 		Count: total,
-		Data:  userList,
+		List:  userList,
 	}, nil
 }
 
 // Create 创建用户
-func (l *userLogic) Create(ctx context.Context, user *types.User) error {
+func (l *userLogic) Create(ctx context.Context, user *domain.User) error {
 	// 检查用户名是否已存在
 	var count int64
 	l.svcCtx.DB.WithContext(ctx).Model(&model.User{}).Where("name = ?", user.Name).Count(&count)
@@ -262,7 +260,6 @@ func (l *userLogic) Create(ctx context.Context, user *types.User) error {
 		Name:     user.Name,
 		Password: string(hashedPassword),
 		Status:   user.Status,
-		IsAdmin:  user.IsAdmin,
 	}
 
 	if err := l.svcCtx.DB.WithContext(ctx).Create(newUser).Error; err != nil {
@@ -273,7 +270,7 @@ func (l *userLogic) Create(ctx context.Context, user *types.User) error {
 }
 
 // Update 更新用户
-func (l *userLogic) Update(ctx context.Context, user *types.User) error {
+func (l *userLogic) Update(ctx context.Context, user *domain.User) error {
 	var existingUser model.User
 	if err := l.svcCtx.DB.WithContext(ctx).Where("id = ?", user.Id).First(&existingUser).Error; err != nil {
 		return errors.New("user not found")
@@ -284,7 +281,6 @@ func (l *userLogic) Update(ctx context.Context, user *types.User) error {
 		existingUser.Name = user.Name
 	}
 	existingUser.Status = user.Status
-	existingUser.IsAdmin = user.IsAdmin
 
 	// 如果提供了新密码，则更新密码
 	if user.Password != "" {
@@ -303,7 +299,7 @@ func (l *userLogic) Update(ctx context.Context, user *types.User) error {
 }
 
 // Delete 删除用户（软删除）
-func (l *userLogic) Delete(ctx context.Context, userID uint) error {
+func (l *userLogic) Delete(ctx context.Context, userID string) error {
 	// 使用 GORM 软删除
 	if err := l.svcCtx.DB.WithContext(ctx).Delete(&model.User{}, userID).Error; err != nil {
 		return err

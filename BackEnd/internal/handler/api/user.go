@@ -1,12 +1,11 @@
 package api
 
 import (
+	"BackEnd/internal/domain"
 	"BackEnd/internal/logic"
 	"BackEnd/internal/svc"
-	"BackEnd/internal/types"
 	"BackEnd/pkg/httpx"
 	"BackEnd/pkg/token"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -62,7 +61,7 @@ func (h *User) InitRegister(engine *gin.Engine) {
 // @Failure      400  {object}  object{code=int,message=string}
 // @Router       /v1/user/register [post]
 func (h *User) Register(ctx *gin.Context) {
-	var req types.RegisterReq
+	var req domain.RegisterReq
 
 	if err := httpx.BindAndValidate(ctx, &req); err != nil {
 		httpx.BadRequest(ctx, err.Error())
@@ -75,7 +74,7 @@ func (h *User) Register(ctx *gin.Context) {
 		return
 	}
 
-	httpx.SuccessWithMessage(ctx, "注册成功", types.RegisterResp{Message: "注册成功"})
+	httpx.SuccessWithMessage(ctx, "注册成功", domain.RegisterResp{Message: "注册成功"})
 }
 
 // Login 用户登录
@@ -90,7 +89,7 @@ func (h *User) Register(ctx *gin.Context) {
 // @Failure      401  {object}  object{code=int,msg=string}
 // @Router       /v1/user/login [post]
 func (h *User) Login(ctx *gin.Context) {
-	var req types.LoginReq
+	var req domain.LoginReq
 
 	if err := httpx.BindAndValidate(ctx, &req); err != nil {
 		httpx.BadRequest(ctx, err.Error())
@@ -150,7 +149,7 @@ func (h *User) UpdateProfile(ctx *gin.Context) {
 		return
 	}
 
-	var req types.UpdateProfileReq
+	var req domain.UpdateProfileReq
 
 	if err := httpx.BindAndValidate(ctx, &req); err != nil {
 		httpx.BadRequest(ctx, err.Error())
@@ -186,7 +185,7 @@ func (h *User) ChangePassword(ctx *gin.Context) {
 		return
 	}
 	// 绑定并验证请求参数
-	var req types.UpdatePasswordReq
+	var req domain.UpdatePasswordReq
 	if err := httpx.BindAndValidate(ctx, &req); err != nil {
 		httpx.BadRequest(ctx, err.Error())
 		return
@@ -212,20 +211,13 @@ func (h *User) ChangePassword(ctx *gin.Context) {
 // @Failure      400  {object}  object{code=int,msg=string}
 // @Router       /v1/user/{id} [get]
 func (h *User) GetUserByID(ctx *gin.Context) {
-	var req types.IdPathReq
+	var req domain.IdPathReq
 	if err := ctx.ShouldBindUri(&req); err != nil {
 		httpx.BadRequest(ctx, err.Error())
 		return
 	}
 
-	// 转换 string ID 到 uint
-	userID, err := strconv.ParseUint(req.Id, 10, 32)
-	if err != nil {
-		httpx.BadRequest(ctx, "invalid user id")
-		return
-	}
-
-	userInfo, err := h.user.GetInfoByID(ctx.Request.Context(), uint(userID))
+	userInfo, err := h.user.GetInfoByID(ctx.Request.Context(), req.Id)
 	if err != nil {
 		httpx.FailWithErr(ctx, err)
 		return
@@ -246,7 +238,7 @@ func (h *User) GetUserByID(ctx *gin.Context) {
 // @Failure      400  {object}  object{code=int,msg=string}
 // @Router       /v1/user [post]
 func (h *User) CreateUser(ctx *gin.Context) {
-	var req types.User
+	var req domain.User
 	if err := httpx.BindAndValidate(ctx, &req); err != nil {
 		httpx.BadRequest(ctx, err.Error())
 		return
@@ -277,7 +269,7 @@ func (h *User) CreateUser(ctx *gin.Context) {
 // @Failure      400  {object}  object{code=int,msg=string}
 // @Router       /v1/user [put]
 func (h *User) UpdateUser(ctx *gin.Context) {
-	var req types.User
+	var req domain.User
 	if err := httpx.BindAndValidate(ctx, &req); err != nil {
 		httpx.BadRequest(ctx, err.Error())
 		return
@@ -304,20 +296,13 @@ func (h *User) UpdateUser(ctx *gin.Context) {
 // @Failure      400  {object}  object{code=int,msg=string}
 // @Router       /v1/user/{id} [delete]
 func (h *User) DeleteUser(ctx *gin.Context) {
-	var req types.IdPathReq
+	var req domain.IdPathReq
 	if err := ctx.ShouldBindUri(&req); err != nil {
 		httpx.BadRequest(ctx, err.Error())
 		return
 	}
 
-	// 转换 string ID 到 uint
-	userID, err := strconv.ParseUint(req.Id, 10, 32)
-	if err != nil {
-		httpx.BadRequest(ctx, "invalid user id")
-		return
-	}
-
-	err = h.user.Delete(ctx.Request.Context(), uint(userID))
+	err := h.user.Delete(ctx.Request.Context(), req.Id)
 	if err != nil {
 		httpx.FailWithErr(ctx, err)
 		return
@@ -340,7 +325,7 @@ func (h *User) DeleteUser(ctx *gin.Context) {
 // @Failure      400  {object}  object{code=int,msg=string}
 // @Router       /v1/user/list [get]
 func (h *User) ListUsers(ctx *gin.Context) {
-	var req types.UserListReq
+	var req domain.UserListReq
 	if err := ctx.ShouldBindQuery(&req); err != nil {
 		httpx.BadRequest(ctx, err.Error())
 		return
@@ -354,4 +339,3 @@ func (h *User) ListUsers(ctx *gin.Context) {
 
 	httpx.Success(ctx, resp)
 }
-

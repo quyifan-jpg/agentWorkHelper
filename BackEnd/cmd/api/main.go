@@ -4,11 +4,13 @@ import (
 	_ "BackEnd/docs" // Import generated docs
 	"BackEnd/internal/config"
 	"BackEnd/internal/handler/api"
+	"BackEnd/internal/handler/ws"
 	"BackEnd/internal/model"
 	"BackEnd/internal/svc"
 	"context"
 	"flag"
 	"fmt"
+	"sync"
 
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -65,13 +67,38 @@ func main() {
 		})
 	})
 
-	// 启动服务
-	addr := fmt.Sprintf("%s:%d", c.Host, c.Port)
-	fmt.Printf("Starting server at %s...\n", addr)
-	fmt.Printf("Swagger UI: http://%s/swagger/index.html\n", addr)
-	if err := apiHandler.Run(); err != nil {
-		panic(err)
-	}
+	// 使用 WaitGroup 管理多个服务
+	var wg sync.WaitGroup
+
+	// 启动 HTTP API 服务
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		addr := fmt.Sprintf("%s:%d", c.Host, c.Port)
+		fmt.Printf("Starting HTTP API server at %s...\n", addr)
+		fmt.Printf("Swagger UI: http://%s/swagger/index.html\n", addr)
+		if err := apiHandler.Run(); err != nil {
+			panic(fmt.Errorf("HTTP API server failed: %w", err))
+		}
+	}()
+
+	// 启动 WebSocket 服务
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				fmt.Printf("WebSocket 服务启动失败: %v\n", r)
+				panic(r) // 重新抛出 panic，让程序知道服务启动失败
+			}
+		}()
+		wsServer := ws.NewWs(svcCtx)
+		fmt.Println("正在启动 WebSocket 服务...")
+		wsServer.Run()
+	}()
+
+	// 等待所有服务
+	wg.Wait()
 }
 
 // initRootUser 初始化 root 管理员用户

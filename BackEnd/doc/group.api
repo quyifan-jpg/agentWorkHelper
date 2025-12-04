@@ -1,0 +1,62 @@
+syntax = "v1"
+
+import "base.api"
+
+info (
+	title:  "Group API"
+	author: "BackEnd"
+)
+
+type (
+	// 创建群聊请求
+	CreateGroupReq {
+		GroupId   string   `json:"groupId" binding:"required"` // 群ID（conversationId）
+		GroupName string   `json:"groupName" binding:"required"` // 群名称
+		MemberIds []string `json:"memberIds" binding:"required"` // 成员ID列表（不包括创建者）
+	}
+	// 添加群成员请求
+	AddGroupMembersReq {
+		GroupId   string   `json:"groupId" binding:"required"` // 群ID
+		MemberIds []string `json:"memberIds" binding:"required"` // 成员ID列表
+	}
+	// 群路径参数请求
+	GroupPathReq {
+		GroupId string `uri:"groupId" binding:"required"` // 群ID
+		UserId  string `uri:"userId,omitempty"` // 用户ID（可选）
+	}
+	// 群成员数量响应
+	GroupMemberCountResp {
+		Count int64 `json:"count"` // 成员数量
+	}
+	// 是否成员响应
+	IsMemberResp {
+		IsMember bool `json:"isMember"` // 是否是成员
+	}
+)
+
+// 群聊管理服务 - 需要认证
+@server (
+	group:      v1/group
+	logic:      Group
+	middleware: Jwt
+)
+service Group {
+	@handler CreateGroup
+	post /create (CreateGroupReq) returns (IdResp)
+
+	@handler GetGroupMembers
+	get /:groupId/members (GroupPathReq) returns (IdResp)
+
+	@handler AddMembers
+	post /members/add (AddGroupMembersReq) returns (IdResp)
+
+	@handler RemoveMember
+	delete /:groupId/members/:userId (GroupPathReq) returns (IdResp)
+
+	@handler IsMember
+	get /:groupId/members/:userId/exists (GroupPathReq) returns (IsMemberResp)
+
+	@handler GetMemberCount
+	get /:groupId/count (GroupPathReq) returns (GroupMemberCountResp)
+}
+

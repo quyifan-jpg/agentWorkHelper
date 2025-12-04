@@ -1,5 +1,142 @@
 basePath: /v1
 definitions:
+  domain.AddGroupMembersReq:
+    properties:
+      groupId:
+        description: 群ID
+        type: string
+      memberIds:
+        description: 成员ID列表
+        items:
+          type: string
+        type: array
+    required:
+    - groupId
+    - memberIds
+    type: object
+  domain.ChatMessage:
+    properties:
+      chatType:
+        description: 聊天类型：1=群聊，2=私聊
+        type: integer
+      content:
+        description: 消息内容
+        type: string
+      contentType:
+        description: 内容类型：1=文字，2=图片等
+        type: integer
+      id:
+        description: 消息ID
+        type: integer
+      sendId:
+        description: 发送者ID
+        type: string
+      sendName:
+        description: 发送者名称
+        type: string
+      sendTime:
+        description: 发送时间戳
+        type: integer
+    type: object
+  domain.ChatMessageListResp:
+    properties:
+      count:
+        description: 每页数量
+        type: integer
+      list:
+        description: 消息列表
+        items:
+          $ref: '#/definitions/domain.ChatMessage'
+        type: array
+      page:
+        description: 当前页码
+        type: integer
+      total:
+        description: 总数量
+        type: integer
+    type: object
+  domain.ChatReq:
+    properties:
+      chatType:
+        description: 聊天类型：0=默认，1=待办，2=审批等
+        type: integer
+      endTime:
+        description: 结束时间戳（用于查询历史消息）
+        type: integer
+      prompts:
+        description: AI提示词/问题
+        type: string
+      relationId:
+        description: 关联ID（如群聊ID，用于查询相关消息）
+        type: string
+      startTime:
+        description: 开始时间戳（用于查询历史消息）
+        type: integer
+    type: object
+  domain.ChatResp:
+    properties:
+      chatType:
+        description: 聊天类型
+        type: integer
+      data:
+        description: AI回复数据（可以是字符串或对象）
+    type: object
+  domain.CreateGroupReq:
+    properties:
+      groupId:
+        description: 群ID（conversationId）
+        type: string
+      groupName:
+        description: 群名称
+        type: string
+      memberIds:
+        description: 成员ID列表（不包括创建者）
+        items:
+          type: string
+        type: array
+    required:
+    - groupId
+    - groupName
+    - memberIds
+    type: object
+  domain.FileListResp:
+    properties:
+      list:
+        description: 文件列表
+        items:
+          $ref: '#/definitions/domain.FileResp'
+        type: array
+    type: object
+  domain.FileResp:
+    properties:
+      file:
+        description: 文件相对路径
+        type: string
+      filename:
+        description: 文件名称
+        type: string
+      host:
+        description: 文件访问主机地址
+        type: string
+    type: object
+  domain.GroupMemberCountResp:
+    properties:
+      count:
+        description: 成员数量
+        type: integer
+    type: object
+  domain.IdResp:
+    properties:
+      id:
+        description: json 标签表示 JSON 序列化字段名
+        type: string
+    type: object
+  domain.IsMemberResp:
+    properties:
+      isMember:
+        description: 是否是成员
+        type: boolean
+    type: object
   types.LoginReq:
     properties:
       name:
@@ -118,6 +255,326 @@ info:
   title: AIWorkHelper API
   version: "1.0"
 paths:
+  /v1/chat:
+    post:
+      consumes:
+      - application/json
+      description: AI智能对话接口，支持待办查询、审批查询、群消息总结等功能
+      parameters:
+      - description: AI聊天请求
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/domain.ChatReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/domain.ChatResp'
+              msg:
+                type: string
+            type: object
+      summary: AI聊天
+      tags:
+      - chat
+  /v1/chat/messages:
+    get:
+      consumes:
+      - application/json
+      description: 根据会话ID查询历史消息列表，支持分页和时间范围过滤
+      parameters:
+      - description: 会话ID
+        in: query
+        name: conversationId
+        required: true
+        type: string
+      - description: 页码，默认1
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量，默认20
+        in: query
+        name: count
+        type: integer
+      - description: 开始时间戳（可选）
+        format: int64
+        in: query
+        name: startTime
+        type: integer
+      - description: 结束时间戳（可选）
+        format: int64
+        in: query
+        name: endTime
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/domain.ChatMessageListResp'
+              msg:
+                type: string
+            type: object
+      summary: 查询历史消息
+      tags:
+      - chat
+  /v1/group/{groupId}/count:
+    get:
+      consumes:
+      - application/json
+      description: 获取指定群的成员数量
+      parameters:
+      - description: 群ID
+        in: path
+        name: groupId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/domain.GroupMemberCountResp'
+              msg:
+                type: string
+            type: object
+      summary: 获取群成员数量
+      tags:
+      - group
+  /v1/group/{groupId}/members:
+    get:
+      consumes:
+      - application/json
+      description: 根据群ID获取群成员ID列表
+      parameters:
+      - description: 群ID
+        in: path
+        name: groupId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                items:
+                  type: string
+                type: array
+              msg:
+                type: string
+            type: object
+      summary: 获取群成员列表
+      tags:
+      - group
+  /v1/group/{groupId}/members/{userId}:
+    delete:
+      consumes:
+      - application/json
+      description: 从群中移除指定成员
+      parameters:
+      - description: 群ID
+        in: path
+        name: groupId
+        required: true
+        type: string
+      - description: 用户ID
+        in: path
+        name: userId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              msg:
+                type: string
+            type: object
+      summary: 移除群成员
+      tags:
+      - group
+  /v1/group/{groupId}/members/{userId}/exists:
+    get:
+      consumes:
+      - application/json
+      description: 检查指定用户是否是群成员
+      parameters:
+      - description: 群ID
+        in: path
+        name: groupId
+        required: true
+        type: string
+      - description: 用户ID
+        in: path
+        name: userId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/domain.IsMemberResp'
+              msg:
+                type: string
+            type: object
+      summary: 检查用户是否在群中
+      tags:
+      - group
+  /v1/group/create:
+    post:
+      consumes:
+      - application/json
+      description: 创建群聊并添加成员（包括创建者）
+      parameters:
+      - description: 创建群聊请求
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/domain.CreateGroupReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/domain.IdResp'
+              msg:
+                type: string
+            type: object
+      summary: 创建群聊
+      tags:
+      - group
+  /v1/group/members/add:
+    post:
+      consumes:
+      - application/json
+      description: 批量添加群成员
+      parameters:
+      - description: 添加群成员请求
+        in: body
+        name: req
+        required: true
+        schema:
+          $ref: '#/definitions/domain.AddGroupMembersReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              msg:
+                type: string
+            type: object
+      summary: 添加群成员
+      tags:
+      - group
+  /v1/upload/file:
+    post:
+      consumes:
+      - multipart/form-data
+      description: 上传文件并保存文件信息，可选参数 chat 用于将文件信息写入 AI 记忆
+      parameters:
+      - description: 文件
+        in: formData
+        name: file
+        required: true
+        type: file
+      - description: 是否写入 AI 记忆（任意值）
+        in: formData
+        name: chat
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/domain.FileResp'
+              msg:
+                type: string
+            type: object
+      summary: 上传单个文件
+      tags:
+      - upload
+  /v1/upload/multiplefiles:
+    post:
+      consumes:
+      - multipart/form-data
+      description: 批量上传多个文件，可选参数 chat 用于将文件信息写入 AI 记忆
+      parameters:
+      - collectionFormat: csv
+        description: 文件列表
+        in: formData
+        items:
+          type: file
+        name: files
+        required: true
+        type: array
+      - description: 是否写入 AI 记忆（任意值）
+        in: formData
+        name: chat
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/domain.FileListResp'
+              msg:
+                type: string
+            type: object
+      summary: 批量上传文件
+      tags:
+      - upload
   /v1/user:
     post:
       consumes:

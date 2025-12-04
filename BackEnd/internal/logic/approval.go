@@ -12,6 +12,7 @@ import (
 	"BackEnd/internal/svc"
 	"BackEnd/pkg/timeutil"
 	"BackEnd/pkg/token"
+	"BackEnd/pkg/util"
 	"BackEnd/pkg/xerr"
 
 	"github.com/rs/zerolog/log"
@@ -230,33 +231,147 @@ func (l *approval) Create(ctx context.Context, req *domain.Approval) (resp *doma
 	}
 
 	// Save Approvers
+	var approvers []model.Approver
 	if len(req.Approvers) > 0 {
-		var approvers []model.Approver
 		for _, a := range req.Approvers {
 			if a.UserId == "" {
 				continue
 			}
-			uid, err := strconv.Atoi(a.UserId)
+			uid, err := util.StringToUint(a.UserId)
 			if err != nil || uid <= 0 {
 				continue
 			}
 			approvers = append(approvers, model.Approver{
 				ApprovalID: approval.ID,
-				UserID:     uint(uid),
+				UserID:     uid,
 				Status:     model.Processed,
 			})
 		}
-		if len(approvers) > 0 {
-			if err := l.svcCtx.DB.WithContext(ctx).Create(&approvers).Error; err != nil {
-				log.Error().Err(err).Msg("failed to create approvers")
-				return nil, xerr.New(err)
-			}
+	} else {
+		// 自动根据部门层级设置审批人
+		approvers, err = l.buildApproversFromDepartment(ctx, userID)
+		if err != nil {
+			log.Error().Err(err).Msg("failed to build approvers from department")
+		}
+	}
+
+	if len(approvers) > 0 {
+		for i := range approvers {
+			approvers[i].ApprovalID = approval.ID
+		}
+		if err := l.svcCtx.DB.WithContext(ctx).Create(&approvers).Error; err != nil {
+			log.Error().Err(err).Msg("failed to create approvers")
+			return nil, xerr.New(err)
 		}
 	}
 
 	return &domain.IdResp{
-		Id: strconv.Itoa(int(approval.ID)),
+		Id: util.UintToString(approval.ID),
 	}, nil
+}
+
+// buildApproversFromDepartment 根据部门层级自动构建审批人列表
+// 参考 AIWorkHelper 的实现：找到用户所属的最深层部门，然后按层级向上添加审批人
+func (l *approval) buildApproversFromDepartment(ctx context.Context, userID uint) ([]model.Approver, error) {
+	// 1. 查找用户所属的所有部门
+	var deptUsers []model.DepartmentUser
+	if err := l.svcCtx.DB.WithContext(ctx).Where("user_id = ?", userID).Find(&deptUsers).Error; err != nil {
+		return nil, err
+	}
+
+	if len(deptUsers) == 0 {
+		return nil, errors.New("用户未关联任何部门")
+	}
+
+	// 2. 查询这些部门的详细信息
+	var deptIDs []uint
+	for _, du := range deptUsers {
+		deptIDs = append(deptIDs, du.DepartmentID)
+	}
+
+	var depts []model.Department
+	if err := l.svcCtx.DB.WithContext(ctx).Where("id IN ?", deptIDs).Find(&depts).Error; err != nil {
+		return nil, err
+	}
+
+	// 3. 找出层级最深的部门（ParentPath最长的）
+	var targetDept *model.Department
+	maxPathLen := -1
+	for i := range depts {
+		pathLen := len(depts[i].ParentPath)
+		if pathLen > maxPathLen {
+			maxPathLen = pathLen
+			targetDept = &depts[i]
+		}
+	}
+
+	if targetDept == nil || targetDept.LeaderID == 0 {
+		return nil, errors.New("未找到用户所属部门或部门无负责人")
+	}
+
+	// 4. 构建审批人列表
+	var approvers []model.Approver
+
+	// 添加直属部门负责人作为第一级审批人
+	approvers = append(approvers, model.Approver{
+		UserID: targetDept.LeaderID,
+		Status: model.Processed,
+	})
+
+	// 5. 解析父部门路径，添加上级部门负责人
+	if targetDept.ParentPath != "" {
+		parentIds := model.ParseParentPath(targetDept.ParentPath)
+		if len(parentIds) > 0 {
+			// 查询所有父部门
+			var parentDepts []model.Department
+			if err := l.svcCtx.DB.WithContext(ctx).Where("id IN ?", parentIds).Find(&parentDepts).Error; err == nil {
+				// 按层级从下到上添加审批人（从最近的上级到最远的上级）
+				for i := len(parentIds) - 1; i >= 0; i-- {
+					// 查找对应的部门
+					for _, pd := range parentDepts {
+						if pd.ID == parentIds[i] && pd.LeaderID > 0 {
+							approvers = append(approvers, model.Approver{
+								UserID: pd.LeaderID,
+								Status: model.Processed,
+							})
+							break
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return approvers, nil
+}
+
+// updateApprovalStatus 更新审批状态（提取的独立方法）
+func (l *approval) updateApprovalStatus(ctx context.Context, approval *model.Approval, status model.ApprovalStatus) error {
+	if status == model.Refuse {
+		approval.Status = model.Refuse
+	} else if status == model.Pass {
+		// 查询所有审批人，检查是否全部通过
+		var approvers []model.Approver
+		if err := l.svcCtx.DB.WithContext(ctx).Where("approval_id = ?", approval.ID).Find(&approvers).Error; err != nil {
+			return xerr.New(err)
+		}
+
+		allPassed := true
+		for _, a := range approvers {
+			if a.Status != model.Pass {
+				allPassed = false
+				break
+			}
+		}
+
+		if allPassed {
+			approval.Status = model.Pass
+			now := time.Now()
+			approval.FinishAt = &now
+		}
+	}
+
+	return l.svcCtx.DB.WithContext(ctx).Save(approval).Error
 }
 
 func (l *approval) Dispose(ctx context.Context, req *domain.DisposeReq) (err error) {
@@ -266,22 +381,22 @@ func (l *approval) Dispose(ctx context.Context, req *domain.DisposeReq) (err err
 	}
 
 	// 1. Check if approval exists
+	approvalID, err := util.StringToUint(req.ApprovalId)
+	if err != nil {
+		return xerr.New(errors.New("invalid approval id"))
+	}
+
 	var approval model.Approval
-	if err := l.svcCtx.DB.WithContext(ctx).Preload("Approvers").First(&approval, req.ApprovalId).Error; err != nil {
+	if err := l.svcCtx.DB.WithContext(ctx).First(&approval, approvalID).Error; err != nil {
 		log.Error().Err(err).Str("approvalId", req.ApprovalId).Msg("failed to find approval for dispose")
 		return xerr.New(err)
 	}
 
-	// 2. Find the approver record for current user
-	var currentApprover *model.Approver
-	for i := range approval.Approvers {
-		if approval.Approvers[i].UserID == userID {
-			currentApprover = &approval.Approvers[i]
-			break
-		}
-	}
-
-	if currentApprover == nil {
+	// 2. Find the approver record for current user using GORM query
+	var currentApprover model.Approver
+	if err := l.svcCtx.DB.WithContext(ctx).
+		Where("approval_id = ? AND user_id = ?", approvalID, userID).
+		First(&currentApprover).Error; err != nil {
 		return xerr.New(errors.New("you are not an approver for this request"))
 	}
 
@@ -292,36 +407,14 @@ func (l *approval) Dispose(ctx context.Context, req *domain.DisposeReq) (err err
 	// 3. Update approver status
 	currentApprover.Status = model.ApprovalStatus(req.Status)
 	currentApprover.Reason = req.Reason
-	if err := l.svcCtx.DB.WithContext(ctx).Save(currentApprover).Error; err != nil {
+	if err := l.svcCtx.DB.WithContext(ctx).Save(&currentApprover).Error; err != nil {
 		log.Error().Err(err).Msg("failed to update approver status")
 		return xerr.New(err)
 	}
 
-	// 4. Update approval status
-	// Logic:
-	// - If Reject (2) -> Approval Rejected (2)
-	// - If Pass (1) -> Check if all passed -> Approval Passed (1)
-
-	if model.ApprovalStatus(req.Status) == model.Refuse {
-		approval.Status = model.Refuse
-	} else if model.ApprovalStatus(req.Status) == model.Pass {
-		allPassed := true
-		for _, a := range approval.Approvers {
-			if a.Status != model.Pass {
-				allPassed = false
-				break
-			}
-		}
-		if allPassed {
-			approval.Status = model.Pass
-			now := time.Now()
-			approval.FinishAt = &now
-		}
-	}
-
-	if err := l.svcCtx.DB.WithContext(ctx).Save(&approval).Error; err != nil {
-		log.Error().Err(err).Msg("failed to update approval status")
-		return xerr.New(err)
+	// 4. Update approval status using extracted method
+	if err := l.updateApprovalStatus(ctx, &approval, model.ApprovalStatus(req.Status)); err != nil {
+		return err
 	}
 
 	return nil
@@ -329,15 +422,7 @@ func (l *approval) Dispose(ctx context.Context, req *domain.DisposeReq) (err err
 
 func (l *approval) List(ctx context.Context, req *domain.ApprovalListReq) (resp *domain.ApprovalListResp, err error) {
 	// 1. 处理分页参数
-	page := req.Page
-	if page < 1 {
-		page = 1
-	}
-	count := req.Count
-	if count < 1 {
-		count = 10
-	}
-	offset := (page - 1) * count
+	pagination := util.NormalizePagination(req.Page, req.Count)
 
 	// Force use current user ID from token to match AIWorkHelper behavior
 	uid, err := token.GetUserID(ctx)
@@ -371,7 +456,7 @@ func (l *approval) List(ctx context.Context, req *domain.ApprovalListReq) (resp 
 
 	// 4. 查询列表数据
 	var approvals []*model.Approval
-	if err = db.Preload("Approvers").Order("id desc").Offset(offset).Limit(count).Find(&approvals).Error; err != nil {
+	if err = db.Preload("Approvers").Order("id desc").Offset(pagination.Offset).Limit(pagination.Count).Find(&approvals).Error; err != nil {
 		log.Error().Err(err).Msg("failed to list approvals")
 		return nil, xerr.New(err)
 	}
@@ -414,17 +499,15 @@ func (l *approval) List(ctx context.Context, req *domain.ApprovalListReq) (resp 
 }
 
 // GenRandomNo 生成指定位数的随机数字字符串
+// 使用时间戳的前 width 位作为审批单号
 func GenRandomNo(width int) string {
-	numeric := [10]byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
-	r := len(numeric)
-	// rand.Seed(time.Now().UnixNano()) // Go 1.20+ automatically seeds global random
-
-	var sb []byte
-	// 生成指定位数的随机数字
-	for i := 0; i < width; i++ {
-		// simple random
-		sb = append(sb, fmt.Sprintf("%d", numeric[int(time.Now().UnixNano())%r])[0])
+	if width <= 0 {
+		width = 11
 	}
-	// Better way if we want true random, but for now simple is fine or use math/rand
-	return fmt.Sprintf("%d", time.Now().UnixNano())[0:width] // Simplified for now to avoid import math/rand if not needed, or just use timestamp
+	timestamp := fmt.Sprintf("%d", time.Now().UnixNano())
+	if len(timestamp) > width {
+		return timestamp[:width]
+	}
+	// 如果时间戳长度不够，前面补0
+	return fmt.Sprintf("%0*d", width, 0) + timestamp
 }

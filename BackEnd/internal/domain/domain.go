@@ -285,3 +285,76 @@ type ApprovalListResp struct {
 	Count int64           `json:"count"`
 	List  []*ApprovalList `json:"data"`
 }
+
+type ChatReq struct {
+	Prompts    string `json:"prompts,omitempty"`    // AI提示词/问题
+	ChatType   int    `json:"chatType,omitempty"`   // 聊天类型：0=默认，1=待办，2=审批等
+	RelationId string `json:"relationId,omitempty"` // 关联ID（如群聊ID，用于查询相关消息）
+	StartTime  int64  `json:"startTime,omitempty"`  // 开始时间戳（用于查询历史消息）
+	EndTime    int64  `json:"endTime,omitempty"`    // 结束时间戳（用于查询历史消息）
+}
+
+type ChatResp struct {
+	ChatType int         `json:"chatType,omitempty"` // 聊天类型
+	Data     interface{} `json:"data"`               // AI回复数据（可以是字符串或对象）
+}
+
+type FileResp struct {
+	Host     string `json:"host"`     // 文件访问主机地址
+	File     string `json:"file"`     // 文件相对路径
+	Filename string `json:"filename"` // 文件名称
+}
+
+type FileListResp struct {
+	List []*FileResp `json:"list"` // 文件列表
+}
+
+type ChatMessageListReq struct {
+	ConversationId string `json:"conversationId" form:"conversationId"` // 会话ID（必填）
+	Page           int    `json:"page" form:"page"`                     // 页码，默认1
+	Count          int    `json:"count" form:"count"`                   // 每页数量，默认20
+	StartTime      int64  `json:"startTime" form:"startTime"`           // 开始时间戳（可选）
+	EndTime        int64  `json:"endTime" form:"endTime"`               // 结束时间戳（可选）
+}
+
+type ChatMessage struct {
+	Id          uint   `json:"id"`          // 消息ID
+	SendId      string `json:"sendId"`      // 发送者ID
+	SendName    string `json:"sendName"`    // 发送者名称
+	Content     string `json:"content"`     // 消息内容
+	ContentType int    `json:"contentType"` // 内容类型：1=文字，2=图片等
+	SendTime    int64  `json:"sendTime"`    // 发送时间戳
+	ChatType    int    `json:"chatType"`    // 聊天类型：1=群聊，2=私聊
+}
+
+type ChatMessageListResp struct {
+	List  []*ChatMessage `json:"list"`  // 消息列表
+	Total int64          `json:"total"` // 总数量
+	Page  int            `json:"page"`  // 当前页码
+	Count int            `json:"count"` // 每页数量
+}
+
+// 群聊相关类型
+type CreateGroupReq struct {
+	GroupId   string   `json:"groupId" binding:"required"`   // 群ID（conversationId）
+	GroupName string   `json:"groupName" binding:"required"` // 群名称
+	MemberIds []string `json:"memberIds" binding:"required"` // 成员ID列表（不包括创建者）
+}
+
+type AddGroupMembersReq struct {
+	GroupId   string   `json:"groupId" binding:"required"`   // 群ID
+	MemberIds []string `json:"memberIds" binding:"required"` // 成员ID列表
+}
+
+type GroupPathReq struct {
+	GroupId string `uri:"groupId" binding:"required"` // 群ID
+	UserId  string `uri:"userId,omitempty"`           // 用户ID（可选）
+}
+
+type GroupMemberCountResp struct {
+	Count int64 `json:"count"` // 成员数量
+}
+
+type IsMemberResp struct {
+	IsMember bool `json:"isMember"` // 是否是成员
+}

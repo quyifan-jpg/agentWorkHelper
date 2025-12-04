@@ -9,6 +9,14 @@ Auth:
   Secret: "your-secret-key"
   Expire: 86400
 
+WS:
+  Host: "127.0.0.1"
+  Port: 9000
+
+Upload:
+  SavePath: "./uploads/" # 文件保存路径（相对于项目根目录）
+  Host: "http://127.0.0.1:8889" # 文件访问主机地址
+
 Redis:
   Addr: "127.0.0.1:6379"
   Password: ""

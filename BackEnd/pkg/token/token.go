@@ -13,6 +13,11 @@ const (
 	userIDKey contextKey = "user_id"
 )
 
+// UserIDKey 返回用户ID的上下文键（用于外部包访问）
+func UserIDKey() contextKey {
+	return userIDKey
+}
+
 // GetUserID 从上下文中获取用户ID
 func GetUserID(ctx context.Context) (uint, error) {
 	uid, ok := ctx.Value(userIDKey).(uint)
@@ -31,4 +36,5 @@ func SetUserID(ctx context.Context, userID uint) context.Context {
 func GetUserIDFromGin(ctx *gin.Context) (uint, error) {
 	return GetUserID(ctx.Request.Context())
 }
+
 

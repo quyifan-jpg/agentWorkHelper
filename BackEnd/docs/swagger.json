@@ -9,6 +9,495 @@
     "host": "localhost:8889",
     "basePath": "/v1",
     "paths": {
+        "/v1/chat": {
+            "post": {
+                "description": "AI智能对话接口，支持待办查询、审批查询、群消息总结等功能",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "AI聊天",
+                "parameters": [
+                    {
+                        "description": "AI聊天请求",
+                        "name": "req",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/domain.ChatReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "code": {
+                                    "type": "integer"
+                                },
+                                "data": {
+                                    "$ref": "#/definitions/domain.ChatResp"
+                                },
+                                "msg": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/chat/messages": {
+            "get": {
+                "description": "根据会话ID查询历史消息列表，支持分页和时间范围过滤",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "查询历史消息",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "会话ID",
+                        "name": "conversationId",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "页码，默认1",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页数量，默认20",
+                        "name": "count",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "开始时间戳（可选）",
+                        "name": "startTime",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "结束时间戳（可选）",
+                        "name": "endTime",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "code": {
+                                    "type": "integer"
+                                },
+                                "data": {
+                                    "$ref": "#/definitions/domain.ChatMessageListResp"
+                                },
+                                "msg": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/group/create": {
+            "post": {
+                "description": "创建群聊并添加成员（包括创建者）",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "group"
+                ],
+                "summary": "创建群聊",
+                "parameters": [
+                    {
+                        "description": "创建群聊请求",
+                        "name": "req",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/domain.CreateGroupReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "code": {
+                                    "type": "integer"
+                                },
+                                "data": {
+                                    "$ref": "#/definitions/domain.IdResp"
+                                },
+                                "msg": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/group/members/add": {
+            "post": {
+                "description": "批量添加群成员",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "group"
+                ],
+                "summary": "添加群成员",
+                "parameters": [
+                    {
+                        "description": "添加群成员请求",
+                        "name": "req",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/domain.AddGroupMembersReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "code": {
+                                    "type": "integer"
+                                },
+                                "msg": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/group/{groupId}/count": {
+            "get": {
+                "description": "获取指定群的成员数量",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "group"
+                ],
+                "summary": "获取群成员数量",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "群ID",
+                        "name": "groupId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "code": {
+                                    "type": "integer"
+                                },
+                                "data": {
+                                    "$ref": "#/definitions/domain.GroupMemberCountResp"
+                                },
+                                "msg": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/group/{groupId}/members": {
+            "get": {
+                "description": "根据群ID获取群成员ID列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "group"
+                ],
+                "summary": "获取群成员列表",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "群ID",
+                        "name": "groupId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "code": {
+                                    "type": "integer"
+                                },
+                                "data": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                },
+                                "msg": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/group/{groupId}/members/{userId}": {
+            "delete": {
+                "description": "从群中移除指定成员",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "group"
+                ],
+                "summary": "移除群成员",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "群ID",
+                        "name": "groupId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "用户ID",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "code": {
+                                    "type": "integer"
+                                },
+                                "msg": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/group/{groupId}/members/{userId}/exists": {
+            "get": {
+                "description": "检查指定用户是否是群成员",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "group"
+                ],
+                "summary": "检查用户是否在群中",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "群ID",
+                        "name": "groupId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "用户ID",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "code": {
+                                    "type": "integer"
+                                },
+                                "data": {
+                                    "$ref": "#/definitions/domain.IsMemberResp"
+                                },
+                                "msg": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/upload/file": {
+            "post": {
+                "description": "上传文件并保存文件信息，可选参数 chat 用于将文件信息写入 AI 记忆",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "upload"
+                ],
+                "summary": "上传单个文件",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "文件",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "是否写入 AI 记忆（任意值）",
+                        "name": "chat",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "code": {
+                                    "type": "integer"
+                                },
+                                "data": {
+                                    "$ref": "#/definitions/domain.FileResp"
+                                },
+                                "msg": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/upload/multiplefiles": {
+            "post": {
+                "description": "批量上传多个文件，可选参数 chat 用于将文件信息写入 AI 记忆",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "upload"
+                ],
+                "summary": "批量上传文件",
+                "parameters": [
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "file"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "文件列表",
+                        "name": "files",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "是否写入 AI 记忆（任意值）",
+                        "name": "chat",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "code": {
+                                    "type": "integer"
+                                },
+                                "data": {
+                                    "$ref": "#/definitions/domain.FileListResp"
+                                },
+                                "msg": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/v1/user": {
             "put": {
                 "security": [
@@ -644,6 +1133,201 @@
         }
     },
     "definitions": {
+        "domain.AddGroupMembersReq": {
+            "type": "object",
+            "required": [
+                "groupId",
+                "memberIds"
+            ],
+            "properties": {
+                "groupId": {
+                    "description": "群ID",
+                    "type": "string"
+                },
+                "memberIds": {
+                    "description": "成员ID列表",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "domain.ChatMessage": {
+            "type": "object",
+            "properties": {
+                "chatType": {
+                    "description": "聊天类型：1=群聊，2=私聊",
+                    "type": "integer"
+                },
+                "content": {
+                    "description": "消息内容",
+                    "type": "string"
+                },
+                "contentType": {
+                    "description": "内容类型：1=文字，2=图片等",
+                    "type": "integer"
+                },
+                "id": {
+                    "description": "消息ID",
+                    "type": "integer"
+                },
+                "sendId": {
+                    "description": "发送者ID",
+                    "type": "string"
+                },
+                "sendName": {
+                    "description": "发送者名称",
+                    "type": "string"
+                },
+                "sendTime": {
+                    "description": "发送时间戳",
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.ChatMessageListResp": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "description": "每页数量",
+                    "type": "integer"
+                },
+                "list": {
+                    "description": "消息列表",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ChatMessage"
+                    }
+                },
+                "page": {
+                    "description": "当前页码",
+                    "type": "integer"
+                },
+                "total": {
+                    "description": "总数量",
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.ChatReq": {
+            "type": "object",
+            "properties": {
+                "chatType": {
+                    "description": "聊天类型：0=默认，1=待办，2=审批等",
+                    "type": "integer"
+                },
+                "endTime": {
+                    "description": "结束时间戳（用于查询历史消息）",
+                    "type": "integer"
+                },
+                "prompts": {
+                    "description": "AI提示词/问题",
+                    "type": "string"
+                },
+                "relationId": {
+                    "description": "关联ID（如群聊ID，用于查询相关消息）",
+                    "type": "string"
+                },
+                "startTime": {
+                    "description": "开始时间戳（用于查询历史消息）",
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.ChatResp": {
+            "type": "object",
+            "properties": {
+                "chatType": {
+                    "description": "聊天类型",
+                    "type": "integer"
+                },
+                "data": {
+                    "description": "AI回复数据（可以是字符串或对象）"
+                }
+            }
+        },
+        "domain.CreateGroupReq": {
+            "type": "object",
+            "required": [
+                "groupId",
+                "groupName",
+                "memberIds"
+            ],
+            "properties": {
+                "groupId": {
+                    "description": "群ID（conversationId）",
+                    "type": "string"
+                },
+                "groupName": {
+                    "description": "群名称",
+                    "type": "string"
+                },
+                "memberIds": {
+                    "description": "成员ID列表（不包括创建者）",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "domain.FileListResp": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "description": "文件列表",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.FileResp"
+                    }
+                }
+            }
+        },
+        "domain.FileResp": {
+            "type": "object",
+            "properties": {
+                "file": {
+                    "description": "文件相对路径",
+                    "type": "string"
+                },
+                "filename": {
+                    "description": "文件名称",
+                    "type": "string"
+                },
+                "host": {
+                    "description": "文件访问主机地址",
+                    "type": "string"
+                }
+            }
+        },
+        "domain.GroupMemberCountResp": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "description": "成员数量",
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.IdResp": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "description": "json 标签表示 JSON 序列化字段名",
+                    "type": "string"
+                }
+            }
+        },
+        "domain.IsMemberResp": {
+            "type": "object",
+            "properties": {
+                "isMember": {
+                    "description": "是否是成员",
+                    "type": "boolean"
+                }
+            }
+        },
         "types.LoginReq": {
             "type": "object",
             "required": [

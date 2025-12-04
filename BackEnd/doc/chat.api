@@ -1,0 +1,100 @@
+syntax = "v1"
+
+import "base.api"
+
+info (
+	title:  "Chat API"
+	author: "BackEnd"
+)
+
+type (
+	// AI聊天请求
+	ChatReq {
+		Prompts    string `json:"prompts,omitempty"`    // AI提示词/问题
+		ChatType   int    `json:"chatType,omitempty"`  // 聊天类型：0=默认，1=待办，2=审批等
+		RelationId string `json:"relationId,omitempty"` // 关联ID（如群聊ID，用于查询相关消息）
+		StartTime  int64  `json:"startTime,omitempty"`  // 开始时间戳（用于查询历史消息）
+		EndTime    int64  `json:"endTime,omitempty"`    // 结束时间戳（用于查询历史消息）
+	}
+
+	// AI聊天响应
+	ChatResp {
+		ChatType int         `json:"chatType,omitempty"` // 聊天类型
+		Data     interface{} `json:"data"`               // AI回复数据（可以是字符串或对象）
+	}
+
+	// 文件上传响应结构
+	FileResp {
+		Host     string `json:"host"`     // 文件访问主机地址
+		File     string `json:"file"`    // 文件相对路径
+		Filename string `json:"filename"` // 文件名称
+	}
+
+	// 多文件上传响应结构
+	FileListResp {
+		List []*FileResp `json:"list"` // 文件列表
+	}
+
+	// 查询历史消息请求
+	ChatMessageListReq {
+		ConversationId string `json:"conversationId" form:"conversationId"` // 会话ID（必填）
+		Page          int    `json:"page" form:"page"`                     // 页码，默认1
+		Count         int    `json:"count" form:"count"`                   // 每页数量，默认20
+		StartTime     int64  `json:"startTime" form:"startTime"`           // 开始时间戳（可选）
+		EndTime       int64  `json:"endTime" form:"endTime"`               // 结束时间戳（可选）
+	}
+
+	// 聊天消息结构
+	ChatMessage {
+		Id          uint   `json:"id"`          // 消息ID
+		SendId      string `json:"sendId"`      // 发送者ID
+		SendName    string `json:"sendName"`     // 发送者名称
+		Content     string `json:"content"`     // 消息内容
+		ContentType int    `json:"contentType"` // 内容类型：1=文字，2=图片等
+		SendTime    int64  `json:"sendTime"`    // 发送时间戳
+		ChatType    int    `json:"chatType"`    // 聊天类型：1=群聊，2=私聊
+	}
+
+	// 查询历史消息响应
+	ChatMessageListResp {
+		List  []*ChatMessage `json:"list"`  // 消息列表
+		Total int64          `json:"total"` // 总数量
+		Page  int            `json:"page"`  // 当前页码
+		Count int            `json:"count"` // 每页数量
+	}
+)
+
+// AI聊天服务 - 需要认证
+@server (
+	group:      v1/chat
+	logic:      Chat
+	middleware: Jwt
+)
+service Chat {
+	@handler Chat
+	post /(ChatReq) returns (ChatResp)
+
+	@handler ListMessages
+	get /messages (ChatMessageListReq) returns (ChatMessageListResp)
+}
+
+// 文件上传服务定义
+@server (
+	group:      v1/upload
+	logic:      Chat
+	middleware: Jwt // 使用JWT中间件保护上传接口
+)
+service Upload {
+	@server(
+		handler: File
+		name: 上传单个文件
+		logic: Chat.File // 处理文件上传并将文件信息写入记忆机制
+	)
+	post /file returns (FileResp)
+
+	@server(
+		handler: Multiplefiles
+		name: 批量上传文件
+	)
+	post /multiplefiles returns (FileListResp)
+}

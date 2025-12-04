@@ -45,6 +45,8 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		&model.UserTodo{},
 		&model.Approval{},
 		&model.Approver{},
+		&model.ChatLog{},      // 聊天记录表
+		&model.GroupMember{}, // 群聊成员表
 	); err != nil {
 		panic(err)
 	}

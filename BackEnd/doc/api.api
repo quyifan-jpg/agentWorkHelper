@@ -7,6 +7,8 @@ import "user.api" // user.api: 包含用户相关的接口定义
 import "department.api"
 import "todo.api"
 import "approval.api" // 审批相关接口定义
+import "chat.api" // chat.api: 聊天相关接口定义
+import "group.api" // group.api: 群聊相关接口定义
 
 // 项目基本信息配置
 info (

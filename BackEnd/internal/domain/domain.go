@@ -310,11 +310,13 @@ type FileListResp struct {
 }
 
 type ChatMessageListReq struct {
-	ConversationId string `json:"conversationId" form:"conversationId"` // 会话ID（必填）
-	Page           int    `json:"page" form:"page"`                     // 页码，默认1
-	Count          int    `json:"count" form:"count"`                   // 每页数量，默认20
-	StartTime      int64  `json:"startTime" form:"startTime"`           // 开始时间戳（可选）
-	EndTime        int64  `json:"endTime" form:"endTime"`               // 结束时间戳（可选）
+	ConversationId string `json:"conversationId" form:"conversationId"`                 // 会话ID (可选，如果为空则根据 targetUserId 生成)
+	TargetUserId   string `json:"targetUserId,omitempty" form:"targetUserId,omitempty"` // 目标用户ID (可选，用于私聊)
+	ChatType       int    `json:"chatType,omitempty" form:"chatType,omitempty"`         // 聊天类型 (可选，2=私聊，3=AI)
+	Page           int    `json:"page" form:"page"`                                     // 页码，默认1
+	Count          int    `json:"count" form:"count"`                                   // 每页数量，默认20
+	StartTime      int64  `json:"startTime" form:"startTime"`                           // 开始时间戳（可选）
+	EndTime        int64  `json:"endTime" form:"endTime"`                               // 结束时间戳（可选）
 }
 
 type ChatMessage struct {
@@ -334,7 +336,27 @@ type ChatMessageListResp struct {
 	Count int            `json:"count"` // 每页数量
 }
 
-// 群聊相关类型
+type Conversation struct {
+	Id              string   `json:"id"`              // 会话ID
+	Type            int      `json:"type"`            // 会话类型: 1=群聊, 2=私聊, 3=AI
+	Name            string   `json:"name"`            // 会话名称
+	LastMessage     string   `json:"lastMessage"`     // 最后一条消息内容
+	LastMessageTime int64    `json:"lastMessageTime"` // 最后一条消息时间
+	UnreadCount     int      `json:"unreadCount"`     // 未读消息数
+	Avatar          string   `json:"avatar"`          // 会话头像
+	MemberIds       []string `json:"memberIds"`       // 成员ID列表
+}
+
+type ConversationListReq struct {
+	Page  int `json:"page" form:"page"`   // 页码
+	Count int `json:"count" form:"count"` // 每页数量
+}
+
+type ConversationListResp struct {
+	List  []*Conversation `json:"list"`  // 会话列表
+	Total int64           `json:"total"` // 总数量
+}
+
 type CreateGroupReq struct {
 	GroupId   string   `json:"groupId" binding:"required"`   // 群ID（conversationId）
 	GroupName string   `json:"groupName" binding:"required"` // 群名称

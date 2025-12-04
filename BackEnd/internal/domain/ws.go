@@ -1,5 +1,5 @@
 /**
-*/
+ */
 // Package domain 定义WebSocket聊天相关的领域模型
 package domain
 
@@ -11,6 +11,7 @@ type Message struct {
 	SendId string `json:"sendId"` // 发送者用户ID，由服务器从JWT Token中提取
 
 	ChatType    int    `json:"chatType"`    // 聊天类型：1=群聊，2=私聊
+	Type        string `json:"type"`        // 消息类型：ping=心跳
 	Content     string `json:"content"`     // 消息内容文本
 	ContentType int    `json:"contentType"` // 内容类型：1=文字，2=图片，3=表情包等
 }

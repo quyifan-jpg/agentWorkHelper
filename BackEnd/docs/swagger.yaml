@@ -81,6 +81,46 @@ definitions:
       data:
         description: AI回复数据（可以是字符串或对象）
     type: object
+  domain.Conversation:
+    properties:
+      avatar:
+        description: 会话头像
+        type: string
+      id:
+        description: 会话ID
+        type: string
+      lastMessage:
+        description: 最后一条消息内容
+        type: string
+      lastMessageTime:
+        description: 最后一条消息时间
+        type: integer
+      memberIds:
+        description: 成员ID列表
+        items:
+          type: string
+        type: array
+      name:
+        description: 会话名称
+        type: string
+      type:
+        description: '会话类型: 1=群聊, 2=私聊, 3=AI'
+        type: integer
+      unreadCount:
+        description: 未读消息数
+        type: integer
+    type: object
+  domain.ConversationListResp:
+    properties:
+      list:
+        description: 会话列表
+        items:
+          $ref: '#/definitions/domain.Conversation'
+        type: array
+      total:
+        description: 总数量
+        type: integer
+    type: object
   domain.CreateGroupReq:
     properties:
       groupId:
@@ -282,6 +322,37 @@ paths:
                 type: string
             type: object
       summary: AI聊天
+      tags:
+      - chat
+  /v1/chat/conversations:
+    get:
+      consumes:
+      - application/json
+      description: 查询当前用户的会话列表
+      parameters:
+      - description: 页码，默认1
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量，默认20
+        in: query
+        name: count
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              code:
+                type: integer
+              data:
+                $ref: '#/definitions/domain.ConversationListResp'
+              msg:
+                type: string
+            type: object
+      summary: 查询会话列表
       tags:
       - chat
   /v1/chat/messages:

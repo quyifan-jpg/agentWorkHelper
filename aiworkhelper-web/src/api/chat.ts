@@ -4,6 +4,7 @@ import type {
   ChatRequest,
   ChatResponse,
   ChatMessageListResponse,
+  ConversationListResponse,
 } from "@/types";
 
 // AI聊天
@@ -64,6 +65,8 @@ export function removeGroupMember(
 // 查询历史消息列表
 export function getChatMessages(params: {
   conversationId: string;
+  targetUserId?: string;
+  chatType?: number;
   page?: number;
   count?: number;
   startTime?: number;
@@ -71,6 +74,19 @@ export function getChatMessages(params: {
 }): Promise<ApiResponse<ChatMessageListResponse>> {
   return request({
     url: "/v1/chat/messages",
+    method: "get",
+    params,
+  });
+}
+
+// 获取会话列表
+export function getConversationList(params: {
+  page?: number;
+  count?: number;
+}): Promise<ApiResponse<ConversationListResponse>> {
+  console.log("loading conversation list");
+  return request({
+    url: "/v1/chat/conversations",
     method: "get",
     params,
   });

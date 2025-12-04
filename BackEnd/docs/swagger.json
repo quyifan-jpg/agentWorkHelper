@@ -54,6 +54,54 @@
                 }
             }
         },
+        "/v1/chat/conversations": {
+            "get": {
+                "description": "查询当前用户的会话列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "查询会话列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "页码，默认1",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "每页数量，默认20",
+                        "name": "count",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "code": {
+                                    "type": "integer"
+                                },
+                                "data": {
+                                    "$ref": "#/definitions/domain.ConversationListResp"
+                                },
+                                "msg": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/v1/chat/messages": {
             "get": {
                 "description": "根据会话ID查询历史消息列表，支持分页和时间范围过滤",
@@ -1244,6 +1292,62 @@
                 },
                 "data": {
                     "description": "AI回复数据（可以是字符串或对象）"
+                }
+            }
+        },
+        "domain.Conversation": {
+            "type": "object",
+            "properties": {
+                "avatar": {
+                    "description": "会话头像",
+                    "type": "string"
+                },
+                "id": {
+                    "description": "会话ID",
+                    "type": "string"
+                },
+                "lastMessage": {
+                    "description": "最后一条消息内容",
+                    "type": "string"
+                },
+                "lastMessageTime": {
+                    "description": "最后一条消息时间",
+                    "type": "integer"
+                },
+                "memberIds": {
+                    "description": "成员ID列表",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "description": "会话名称",
+                    "type": "string"
+                },
+                "type": {
+                    "description": "会话类型: 1=群聊, 2=私聊, 3=AI",
+                    "type": "integer"
+                },
+                "unreadCount": {
+                    "description": "未读消息数",
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.ConversationListResp": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "description": "会话列表",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Conversation"
+                    }
+                },
+                "total": {
+                    "description": "总数量",
+                    "type": "integer"
                 }
             }
         },

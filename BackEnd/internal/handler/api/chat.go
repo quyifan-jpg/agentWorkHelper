@@ -23,8 +23,9 @@ func NewChat(svcCtx *svc.ServiceContext, chat logic.Chat) *Chat {
 
 func (h *Chat) InitRegister(engine *gin.Engine) {
 	g := engine.Group("v1/chat", h.svcCtx.Jwt.Handler)
-	g.POST("", h.Chat)              // POST /v1/chat - AI聊天接口
-	g.GET("/messages", h.ListMessages) // GET /v1/chat/messages - 查询历史消息
+	g.POST("", h.Chat)                           // POST /v1/chat - AI聊天接口
+	g.GET("/messages", h.ListMessages)           // GET /v1/chat/messages - 查询历史消息
+	g.GET("/conversations", h.ListConversations) // GET /v1/chat/conversations - 查询会话列表
 }
 
 // Chat AI聊天接口
@@ -67,12 +68,40 @@ func (h *Chat) Chat(ctx *gin.Context) {
 // @Router /v1/chat/messages [get]
 func (h *Chat) ListMessages(ctx *gin.Context) {
 	var req domain.ChatMessageListReq
-	if err := httpx.BindAndValidate(ctx, &req); err != nil {
+	// var req domain.ChatMessageListReq
+	// GET请求使用Query参数绑定
+	if err := ctx.ShouldBindQuery(&req); err != nil {
 		httpx.FailWithErr(ctx, err)
 		return
 	}
 
 	resp, err := h.chat.ListMessages(ctx.Request.Context(), &req)
+	if err != nil {
+		httpx.FailWithErr(ctx, err)
+		return
+	}
+
+	httpx.Success(ctx, resp)
+}
+
+// ListConversations 查询会话列表
+// @Summary 查询会话列表
+// @Description 查询当前用户的会话列表
+// @Tags chat
+// @Accept json
+// @Produce json
+// @Param page query int false "页码，默认1"
+// @Param count query int false "每页数量，默认20"
+// @Success 200 {object} object{code=int,msg=string,data=domain.ConversationListResp}
+// @Router /v1/chat/conversations [get]
+func (h *Chat) ListConversations(ctx *gin.Context) {
+	var req domain.ConversationListReq
+	if err := ctx.ShouldBindQuery(&req); err != nil {
+		httpx.FailWithErr(ctx, err)
+		return
+	}
+
+	resp, err := h.chat.ListConversations(ctx.Request.Context(), &req)
 	if err != nil {
 		httpx.FailWithErr(ctx, err)
 		return

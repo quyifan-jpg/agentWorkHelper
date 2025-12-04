@@ -22,14 +22,14 @@ import (
 // Ws WebSocket服务结构体，管理所有WebSocket连接和聊天功能
 type Ws struct {
 	websocket.Upgrader                     // WebSocket升级器，用于HTTP到WebSocket的协议升级
-	svcCtx            *svc.ServiceContext // 服务上下文，包含数据库连接等依赖
+	svcCtx             *svc.ServiceContext // 服务上下文，包含数据库连接等依赖
 
 	uidToConn map[string]*websocket.Conn // 用户ID到WebSocket连接的映射
 	connToUid map[*websocket.Conn]string // WebSocket连接到用户ID的映射
 
-	sync.RWMutex              // 读写锁，保护连接映射的并发安全
-	chat        logic.Chat    // 聊天业务逻辑处理器
-	jwtSecret   string        // JWT密钥
+	sync.RWMutex            // 读写锁，保护连接映射的并发安全
+	chat         logic.Chat // 聊天业务逻辑处理器
+	jwtSecret    string     // JWT密钥
 }
 
 // NewWs 创建WebSocket服务实例
@@ -40,11 +40,11 @@ func NewWs(svcCtx *svc.ServiceContext) *Ws {
 				return true // 允许所有来源的WebSocket连接（生产环境应该限制）
 			},
 		},
-		svcCtx:      svcCtx,
-		chat:        logic.NewChat(svcCtx),
-		jwtSecret:   svcCtx.Config.Auth.Secret,
-		uidToConn:   make(map[string]*websocket.Conn),
-		connToUid:   make(map[*websocket.Conn]string),
+		svcCtx:    svcCtx,
+		chat:      logic.NewChat(svcCtx),
+		jwtSecret: svcCtx.Config.Auth.Secret,
+		uidToConn: make(map[string]*websocket.Conn),
+		connToUid: make(map[*websocket.Conn]string),
 	}
 }
 
@@ -80,11 +80,6 @@ func (s *Ws) ServerWs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Info().
-		Uint("userID", userID).
-		Str("remote_addr", r.RemoteAddr).
-		Msg("WebSocket 认证成功，开始升级连接")
-
 	// 将HTTP连接升级为WebSocket连接
 	respHeader := http.Header{
 		"websocket": []string{tokenStr}, // 在响应头中返回Token
@@ -97,9 +92,9 @@ func (s *Ws) ServerWs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Info().
-		Uint("userID", userID).
-		Msg("WebSocket 连接升级成功")
+	// log.Info().
+	// 	Uint("userID", userID).
+	// 	Msg("WebSocket 连接升级成功")
 
 	// 将新连接添加到连接管理器中
 	s.addConn(conn, util.UintToString(userID))
@@ -255,7 +250,7 @@ func (s *Ws) handleConn(conn *websocket.Conn, userID uint, tok string) {
 				Msg("解析WebSocket消息失败")
 			// 发送错误消息给客户端
 			errorMsg := map[string]interface{}{
-				"error": "消息格式错误",
+				"error":  "消息格式错误",
 				"detail": err.Error(),
 			}
 			if sendErr := s.send(ctx, conn, errorMsg); sendErr != nil {
@@ -268,8 +263,15 @@ func (s *Ws) handleConn(conn *websocket.Conn, userID uint, tok string) {
 		log.Debug().
 			Uint("userID", userID).
 			Int("chatType", req.ChatType).
+			Str("type", req.Type).
 			Str("recvId", req.RecvId).
 			Msg("收到 WebSocket 消息")
+
+		// 处理心跳消息
+		if req.Type == "ping" {
+			log.Debug().Uint("userID", userID).Msg("收到心跳包")
+			continue
+		}
 
 		// 根据聊天类型分发消息处理
 		switch model.ChatType(req.ChatType) {
@@ -281,7 +283,7 @@ func (s *Ws) handleConn(conn *websocket.Conn, userID uint, tok string) {
 			log.Warn().Int("chatType", req.ChatType).Msg("未知的聊天类型")
 			// 发送错误消息给客户端
 			errorMsg := map[string]interface{}{
-				"error": "不支持的聊天类型",
+				"error":    "不支持的聊天类型",
 				"chatType": req.ChatType,
 			}
 			if sendErr := s.send(ctx, conn, errorMsg); sendErr != nil {
@@ -298,7 +300,7 @@ func (s *Ws) handleConn(conn *websocket.Conn, userID uint, tok string) {
 				Msg("处理消息失败")
 			// 发送错误消息给客户端
 			errorMsg := map[string]interface{}{
-				"error": "消息处理失败",
+				"error":  "消息处理失败",
 				"detail": err.Error(),
 			}
 			if sendErr := s.send(ctx, conn, errorMsg); sendErr != nil {
@@ -345,4 +347,3 @@ func (s *Ws) groupChat(ctx context.Context, conn *websocket.Conn, req *domain.Me
 	// 当前实现：广播给所有在线用户
 	return s.sendByUids(ctx, req) // 广播给所有在线用户
 }
-

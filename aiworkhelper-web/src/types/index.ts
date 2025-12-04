@@ -258,3 +258,18 @@ export interface ChatMessageListResponse {
   page: number;
   count: number;
 }
+
+export interface Conversation {
+  id: string;
+  type: number; // 1=群聊, 2=私聊, 3=AI
+  name: string;
+  lastMessage: string;
+  lastMessageTime: number;
+  unreadCount: number;
+  avatar: string;
+}
+
+export interface ConversationListResponse {
+  list: Conversation[];
+  total: number;
+}

@@ -294,7 +294,12 @@ import {
 } from "vue";
 import { ElMessage } from "element-plus";
 import { Plus, Picture, Loading, Check } from "@element-plus/icons-vue";
-import { chat, createGroup, getChatMessages } from "@/api/chat";
+import {
+  chat,
+  createGroup,
+  getChatMessages,
+  getConversationList,
+} from "@/api/chat";
 import { uploadFile } from "@/api/upload";
 import { getUserList } from "@/api/user";
 import { createWebSocket, WebSocketClient } from "@/utils/websocket";
@@ -318,7 +323,7 @@ interface Conversation {
   name: string;
   type: "ai" | "group" | "private";
   lastMessage: string;
-  memberIds?: string[]; // 群聊成员ID列表
+  memberIds?: string[]; // 群聊或私聊成员ID列表
   creatorId?: string; // 群创建者ID
   createTime?: number; // 创建时间
   backendConversationId?: string; // 后端真实的conversationId（用于查询历史消息）
@@ -659,11 +664,11 @@ const initWebSocket = async () => {
         console.log("[WebSocket] 消息处理器被调用，处理消息:", message);
         handleReceiveMessage(message);
       };
-
-      // 监听消息（只添加一次）
-      console.log("[WebSocket] 添加消息监听器");
-      wsClient.onMessage(messageHandler);
     }
+
+    // 监听消息（每次创建连接都需要添加）
+    console.log("[WebSocket] 添加消息监听器");
+    wsClient.onMessage(messageHandler);
 
     // 验证处理器是否已添加
     console.log(
@@ -1348,8 +1353,8 @@ const sendAIMessage = async () => {
 
 // 发送群聊消息
 const sendGroupMessage = async () => {
-  if (!wsClient || !wsClient.isConnected) {
-    ElMessage.warning("WebSocket未连接");
+  if (!wsClient) {
+    ElMessage.warning("WebSocket未初始化");
     return;
   }
 
@@ -1480,8 +1485,8 @@ const sendAIMessageInGroup = async () => {
 
 // 发送私聊消息
 const sendPrivateMessage = async () => {
-  if (!wsClient || !wsClient.isConnected) {
-    ElMessage.warning("WebSocket未连接");
+  if (!wsClient) {
+    ElMessage.warning("WebSocket未初始化");
     return;
   }
 
@@ -1498,9 +1503,19 @@ const sendPrivateMessage = async () => {
   }
 
   // 从 memberIds 中找到对方的用户ID（排除自己）
-  const recvId = currentConv.memberIds?.find(
+  let recvId = currentConv.memberIds?.find(
     (id) => id !== userStore.userInfo?.id
   );
+
+  // 如果没有找到 recvId，尝试从 backendConversationId 解析或使用 targetUserId
+  if (!recvId && currentConv.type === "private") {
+    // 尝试从 conversationId 解析 (private_uid1_uid2) - 这里假设ID格式，但实际上后端生成的是hash
+    // 所以更好的是在 conversation 对象中存储 targetUserId
+    // 这里我们假设如果 memberIds 为空，可能是新会话或者数据不全
+    // 我们尝试使用 getPrivateChatUserId 获取
+    recvId = getPrivateChatUserId(currentConv);
+  }
+
   if (!recvId) {
     console.error("[发送私聊] 无法找到接收者ID:", {
       当前会话: currentConv,
@@ -1727,30 +1742,34 @@ const switchConversation = async (conv: Conversation) => {
     (conv.type === "group" || conv.type === "private") &&
     !loadedHistoryConversations.value.has(conv.id)
   ) {
-    // 确定会话ID
-    let conversationId: string | undefined = undefined;
+    // 确定会话ID和参数
+    let conversationId: string = "";
+    let targetUserId: string | undefined = undefined;
+    let chatType: number | undefined = undefined;
 
     if (conv.type === "private") {
-      // 私聊：优先使用保存的后端conversationId
-      conversationId = conv.backendConversationId;
-      if (!conversationId) {
-        // 如果没有保存，说明还没有收到过消息，暂时不加载历史消息
-        console.log(
-          "[切换会话] 私聊会话还没有后端conversationId，等待收到消息后再加载历史"
-        );
-      }
-    } else if (conv.type === "group") {
-      // 群聊：使用群ID或 'all'
+      // 私聊：优先使用后端返回的conversationId
+      conversationId = conv.backendConversationId || "";
+      // 如果没有conversationId，则使用targetUserId
+      targetUserId = getPrivateChatUserId(conv);
+      chatType = 2;
+    } else if (conv.type === "ai") {
+      // AI对话：构造特定的conversationId
+      conversationId = `ai_${userStore.userInfo?.id}`;
+      chatType = 3;
+    } else {
+      // 群聊：直接使用群ID
       conversationId = conv.id === "all" ? "all" : conv.id;
+      chatType = 1;
     }
 
-    // 如果有conversationId，则加载历史消息
-    if (conversationId) {
+    // 如果有conversationId 或者 (是私聊且有targetUserId)，则加载历史消息
+    if (conversationId || (conv.type === "private" && targetUserId)) {
       // 标记为已加载
       loadedHistoryConversations.value.add(conv.id);
 
       // 加载历史消息
-      await loadHistoryMessages(conversationId);
+      await loadHistoryMessages(conversationId, targetUserId, chatType);
 
       // 重新显示消息（包含历史消息）
       messages.value = conversationMessages[conv.id] || [];
@@ -1948,13 +1967,55 @@ const scrollToBottom = () => {
   });
 };
 
-onMounted(() => {
-  // 加载用户列表
-  loadUserList();
-  // 自动连接 WebSocket
-  initWebSocket();
-  // 默认显示AI对话
-  switchConversation(conversations.value[0]);
+// 加载会话列表
+const loadConversationList = async () => {
+  try {
+    console.log("[加载会话列表] 开始加载会话列表");
+    const res = await getConversationList({ page: 1, count: 100 });
+    console.log("[加载会话列表] 后端返回数据:", res);
+    if (res.code === 200 && res.data && res.data.list) {
+      // 映射后端数据到前端格式
+      const backendConversations = res.data.list.map((c: any) => {
+        let type: "ai" | "group" | "private" = "private";
+        if (c.type === 1) type = "group";
+        else if (c.type === 3) type = "ai";
+
+        return {
+          id: c.id,
+          name: c.name,
+          type: type,
+          lastMessage: c.lastMessage,
+          backendConversationId: c.id, // 记录后端ID
+          memberIds: c.memberIds, // 映射成员ID列表
+        } as Conversation;
+      });
+
+      // 合并到现有会话列表 (保留AI助手)
+      const aiConv = conversations.value.find((c) => c.type === "ai");
+      const otherConvs = backendConversations.filter(
+        (c: any) => c.type !== "ai"
+      );
+
+      if (aiConv) {
+        conversations.value = [aiConv, ...otherConvs];
+      } else {
+        conversations.value = [...otherConvs];
+      }
+    }
+  } catch (error) {
+    console.error("加载会话列表失败:", error);
+  }
+};
+
+onMounted(async () => {
+  if (userStore.token) {
+    // 初始化WebSocket连接
+    initWebSocket();
+    // 加载用户列表
+    loadUserList();
+    // 加载会话列表
+    loadConversationList();
+  }
 });
 
 onBeforeUnmount(() => {

@@ -3,6 +3,7 @@ package middleware
 import (
 	"BackEnd/pkg/jwt"
 	"BackEnd/pkg/token"
+	"context"
 	"net/http"
 	"strings"
 
@@ -60,6 +61,7 @@ func (m *Jwt) Handler(ctx *gin.Context) {
 
 	// 将用户ID注入到请求上下文中
 	ctx.Request = ctx.Request.WithContext(token.SetUserID(ctx.Request.Context(), userID))
+	// 将Token字符串注入到请求上下文中，供后续工具调用使用
+	ctx.Request = ctx.Request.WithContext(context.WithValue(ctx.Request.Context(), token.Authorization, authHeader))
 	ctx.Next()
 }
-

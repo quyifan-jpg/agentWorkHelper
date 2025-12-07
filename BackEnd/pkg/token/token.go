@@ -10,7 +10,8 @@ import (
 type contextKey string
 
 const (
-	userIDKey contextKey = "user_id"
+	userIDKey contextKey = "user_id"	
+	Authorization contextKey = "Authorization"
 )
 
 // UserIDKey 返回用户ID的上下文键（用于外部包访问）
@@ -38,3 +39,10 @@ func GetUserIDFromGin(ctx *gin.Context) (uint, error) {
 }
 
 
+func GetTokenStr(ctx context.Context) string {
+	tokenStr, ok := ctx.Value(Authorization).(string)
+	if !ok {
+		return ""
+	}
+	return tokenStr
+}

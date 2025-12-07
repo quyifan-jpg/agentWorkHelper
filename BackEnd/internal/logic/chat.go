@@ -2,19 +2,26 @@ package logic
 
 import (
 	"BackEnd/internal/domain"
+	"BackEnd/internal/logic/chatinternal"
 	"BackEnd/internal/model"
 	"BackEnd/internal/svc"
+	"BackEnd/pkg/langchain"
+	"BackEnd/pkg/langchain/router"
 	"BackEnd/pkg/token"
 	"BackEnd/pkg/util"
 	"BackEnd/pkg/xerr"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"github.com/tmc/langchaingo/chains"
+	"github.com/tmc/langchaingo/schema"
 )
 
 type Chat interface {
@@ -33,77 +40,123 @@ type Chat interface {
 }
 
 type chat struct {
-	svcCtx *svc.ServiceContext
+	svcCtx   *svc.ServiceContext
+	baseChat *chatinternal.BaseChat
+	router   *router.Router // 智能路由器，用于选择合适的处理器
+	memory   schema.Memory  // 多会话内存管理器，支持对话历史记忆
 }
 
 func NewChat(svcCtx *svc.ServiceContext) Chat {
+	var baseChat *chatinternal.BaseChat
+	var err error
+
+	if svcCtx.LLMs != nil {
+		baseChat = chatinternal.NewBaseChatFromLLM(svcCtx.LLMs)
+	} else {
+		baseChat, err = chatinternal.NewBaseChat(
+			svcCtx.Config.AI.ApiKey,
+			svcCtx.Config.AI.BaseURL,
+			svcCtx.Config.AI.Model,
+		)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to initialize AI chat")
+		}
+	}
+
+	var r *router.Router
+	if baseChat != nil {
+		todoHandle := chatinternal.NewTodoHandle(svcCtx)
+		chatHandle := chatinternal.NewChatHandle(svcCtx)
+		r = router.NewRouter(baseChat.GetLLM(), []router.Handler{
+			todoHandle,
+			chatHandle,
+		})
+	}
+
 	return &chat{
-		svcCtx: svcCtx,
+		svcCtx:   svcCtx,
+		baseChat: baseChat,
+		router:   r,
 	}
 }
 
 // AIChat AI聊天接口
 func (l *chat) AIChat(ctx context.Context, req *domain.ChatReq) (resp *domain.ChatResp, err error) {
-	// 1. 获取当前用户ID
 	userID, err := token.GetUserID(ctx)
 	if err != nil {
 		return nil, xerr.New(err)
 	}
+	uidStr := util.UintToString(userID)
 
-	// 2. 构造会话ID
-	conversationId := "ai_" + util.UintToString(userID)
+	ctx = context.WithValue(ctx, langchain.ChatID, uidStr)
+	fmt.Printf("Token in AIChat: %s\n", token.GetTokenStr(ctx))
 
-	// 3. 保存用户提问
-	userMsg := &domain.Message{
-		ConversationId: conversationId,
-		SendId:         util.UintToString(userID),
-		RecvId:         "0", // 0表示AI
-		ChatType:       int(model.AIChatType),
-		Content:        req.Prompts,
-		ContentType:    1,
+	return l.aiService(ctx, req)
+}
+
+// basicService 处理基础聊天服务请求
+func (l *chat) aiService(ctx context.Context, req *domain.ChatReq) (resp *domain.ChatResp, err error) {
+	if l.router == nil {
+		return nil, errors.New("AI service not initialized")
 	}
-	if err := l.chatlog(ctx, userMsg); err != nil {
-		log.Error().Err(err).Msg("保存用户提问失败")
-		// 不阻断流程，继续处理
-	}
-
-	// 4. TODO: 集成真正的 AI 逻辑
-	// 当前返回简单响应
-	aiContent := "AI 功能暂未实现，请稍后"
-
-	// 5. 保存 AI 回复
-	aiMsg := &domain.Message{
-		ConversationId: conversationId,
-		SendId:         "0", // 0表示AI
-		RecvId:         util.UintToString(userID),
-		ChatType:       int(model.AIChatType),
-		Content:        aiContent,
-		ContentType:    1,
-	}
-	if err := l.chatlog(ctx, aiMsg); err != nil {
-		log.Error().Err(err).Msg("保存AI回复失败")
+	v, err := chains.Call(ctx, l.router, map[string]any{
+		langchain.Input: req.Prompts,
+	}, chains.WithCallback(l.svcCtx.Callbacks))
+	if err != nil {
+		return nil, err
 	}
 
-	return &domain.ChatResp{
-		ChatType: 0,
-		Data:     aiContent,
-	}, nil
+	data := v[langchain.Output].(string)
+
+	// AI : {"chatType": "", "data": ""}
+	var res domain.ChatResp
+	if err := json.Unmarshal([]byte(data), &res); err != nil {
+		// If unmarshal fails, treat as plain text
+		return &domain.ChatResp{
+			ChatType: 0,
+			Data:     data,
+		}, nil
+	}
+
+	return &res, nil
+}
+
+func (l *chat) basicService(ctx context.Context, req *domain.ChatReq) (resp *domain.ChatResp, err error) {
+	return nil, err
 }
 
 // File 处理文件上传，将文件信息保存到记忆机制中（可选实现）
 // 当前实现为占位符，后续可以集成 AI 记忆功能
 func (l *chat) File(ctx context.Context, files []*domain.FileResp) (err error) {
-	// TODO: 实现文件信息保存到 AI 记忆机制
-	// 当前实现为占位符，后续可以：
-	// 1. 将文件信息保存到数据库
-	// 2. 集成 LangChain 等 AI 框架的记忆机制
-	// 3. 将文件内容提取并保存到向量数据库
+	if l.baseChat == nil {
+		return nil
+	}
 
-	// 当前仅记录日志
-	log.Info().
-		Int("file_count", len(files)).
-		Msg("文件上传成功，文件信息已记录")
+	// 构造文件信息
+	fileData := make([]map[string]any, 0, len(files))
+	for _, f := range files {
+		fileData = append(fileData, map[string]any{
+			"filename": f.Filename,
+			"path":     f.File,
+			"host":     f.Host,
+		})
+	}
 
+	// 保存到 AI 记忆上下文
+	// 这里简单地将文件列表作为 context 保存
+	// 实际应用中可能需要提取文件内容
+	err = l.baseChat.SaveContext(ctx, map[string]any{
+		"uploaded_files": fileData,
+	}, map[string]any{
+		"output": "Files uploaded and context updated",
+	})
+
+	if err != nil {
+		log.Error().Err(err).Msg("保存文件上下文失败")
+		return err
+	}
+
+	log.Info().Int("count", len(files)).Msg("文件上下文已保存到 AI 记忆")
 	return nil
 }
 
@@ -113,11 +166,9 @@ func (l *chat) PrivateChat(ctx context.Context, req *domain.Message) error {
 }
 
 func (l *chat) GroupChat(ctx context.Context, req *domain.Message) (uids []string, err error) {
-	// 群聊：设置会话ID为 "all"（如果没有指定）
 	if req.ConversationId == "" {
 		req.ConversationId = "all"
 	}
-	// 群聊时 RecvId 为空
 	req.RecvId = ""
 
 	if err := l.chatlog(ctx, req); err != nil {
@@ -132,15 +183,12 @@ func (l *chat) chatlog(ctx context.Context, req *domain.Message) error {
 
 	// 确保会话存在
 	var err error
-	if req.ConversationId == "" || req.ConversationId == "all" { // 兼容旧逻辑 "all"
+	if req.ConversationId == "" {
 		if req.ChatType == int(model.SingleChatType) && req.RecvId != "" {
 			req.ConversationId, err = l.getOrCreatePrivateConversation(ctx, sendId, req.RecvId)
 		} else if req.ChatType == int(model.GroupChatType) {
-			// 群聊ID通常由前端生成或API创建，这里假设如果传了ConversationId就是群ID
-			// 如果没传，暂时无法处理，或者生成一个默认的
-			if req.ConversationId == "" || req.ConversationId == "all" {
-				// 这是一个临时的兼容，实际群聊应该有明确的ID
-				req.ConversationId = "group_default"
+			if req.ConversationId == "" {
+				return errors.New("群聊必须指定ConversationId")
 			}
 			req.ConversationId, err = l.getOrCreateGroupConversation(ctx, req.ConversationId, sendId)
 		} else if req.ChatType == int(model.AIChatType) {

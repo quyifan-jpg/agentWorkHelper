@@ -4,15 +4,21 @@ import (
 	"BackEnd/internal/config"
 	"BackEnd/internal/middleware"
 	"BackEnd/internal/model"
+	// "log"
 
+	"github.com/tmc/langchaingo/callbacks"
+	"github.com/tmc/langchaingo/llms"
+	"github.com/tmc/langchaingo/llms/openai"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
 
 type ServiceContext struct {
-	Config config.Config
-	DB     *gorm.DB
-	Jwt    *middleware.Jwt
+	Config    config.Config
+	DB        *gorm.DB
+	Jwt       *middleware.Jwt
+	Callbacks callbacks.Handler
+	LLMs      llms.Model
 }
 
 func NewServiceContext(c config.Config) *ServiceContext {
@@ -53,9 +59,29 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		panic(err)
 	}
 
+	// 初始化 LLM
+	if c.AI.BaseURL == "" {
+		c.AI.BaseURL = "https://api.openai.com/v1"
+	}
+	if c.AI.Model == "" {
+		c.AI.Model = "gpt-3.5-turbo"
+	}
+
+	llm, err := openai.New(
+		openai.WithToken(c.AI.ApiKey),
+		openai.WithBaseURL(c.AI.BaseURL),
+		openai.WithModel(c.AI.Model),
+	)
+	if err != nil {
+		panic(err)
+		// log.Error().Err(err).Msg("Failed to initialize LLM")
+		// 暂时不panic，允许LLM初始化失败（例如没有配置key）
+	}
+
 	return &ServiceContext{
 		Config: c,
 		DB:     db,
 		Jwt:    middleware.NewJwt(c.Auth.Secret),
+		LLMs:   llm,
 	}
 }

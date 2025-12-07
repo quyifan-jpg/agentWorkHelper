@@ -1,9 +1,9 @@
 package config
 
 type Config struct {
-	Name string `mapstructure:"Name"`
-	Host string `mapstructure:"Host"`
-	Port int    `mapstructure:"Port"`
+	Name  string `mapstructure:"Name"`
+	Host  string `mapstructure:"Host"`
+	Port  int    `mapstructure:"Port"`
 	MySQL struct {
 		DSN string `mapstructure:"DSN"`
 	} `mapstructure:"MySQL"`
@@ -19,4 +19,9 @@ type Config struct {
 		SavePath string `mapstructure:"SavePath"` // 文件保存路径
 		Host     string `mapstructure:"Host"`     // 文件访问主机地址
 	} `mapstructure:"Upload"`
+	AI struct {
+		ApiKey  string `mapstructure:"ApiKey"`
+		Model   string `mapstructure:"Model"`
+		BaseURL string `mapstructure:"BaseURL"`
+	} `mapstructure:"AI"`
 }

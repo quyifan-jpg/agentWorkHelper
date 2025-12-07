@@ -40,7 +40,7 @@ BackEnd/main
 dist/
 build/
 bin/
-
+BackEnd/etc/local/api.yaml
 # Logs
 *.log
 logs/

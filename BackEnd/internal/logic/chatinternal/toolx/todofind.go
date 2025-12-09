@@ -97,16 +97,6 @@ func (t *TodoFind) Call(ctx context.Context, input string) (string, error) {
 
 	// 确保Host包含协议
 	host := t.svc.Config.Host
-	if host == "0.0.0.0" {
-		host = "127.0.0.1"
-	}
-	if !strings.HasPrefix(host, "http") {
-		host = "http://" + host
-	}
-	// Append port if not present
-	if !strings.Contains(host, ":") || (strings.Count(host, ":") == 1 && strings.HasPrefix(host, "http")) {
-		host = fmt.Sprintf("%s:%d", host, t.svc.Config.Port)
-	}
 
 	// 调用API查询待办事项
 	res, err := curl.GetRequest(token.GetTokenStr(ctx), host+"/v1/todo/list", data)

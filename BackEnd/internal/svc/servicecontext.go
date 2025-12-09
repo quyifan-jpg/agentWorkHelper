@@ -4,6 +4,8 @@ import (
 	"BackEnd/internal/config"
 	"BackEnd/internal/middleware"
 	"BackEnd/internal/model"
+	"fmt"
+
 	// "log"
 
 	"github.com/tmc/langchaingo/callbacks"
@@ -84,4 +86,13 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		Jwt:    middleware.NewJwt(c.Auth.Secret),
 		LLMs:   llm,
 	}
+}
+
+// GetBaseURL returns the base URL for internal API calls, handling the 0.0.0.0 case
+func (s *ServiceContext) GetBaseURL() string {
+	host := "127.0.0.1" // Default fallback
+	if s.Config.Host != "0.0.0.0" && s.Config.Host != "" {
+		host = s.Config.Host
+	}
+	return fmt.Sprintf("http://%s:%d", host, s.Config.Port)
 }

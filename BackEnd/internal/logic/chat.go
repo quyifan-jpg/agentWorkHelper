@@ -66,7 +66,9 @@ func NewChat(svcCtx *svc.ServiceContext) Chat {
 	var r *router.Router
 	if baseChat != nil {
 		todoHandle := chatinternal.NewTodoHandle(svcCtx)
-		departmentHandle := chatinternal.NewDepartmentHandle(svcCtx)
+		// Inject the logic implementation required by the tool
+		deptLogic := NewDepartment(svcCtx)
+		departmentHandle := chatinternal.NewDepartmentHandle(svcCtx, deptLogic)
 		chatHandle := chatinternal.NewChatHandle(svcCtx)
 		r = router.NewRouter(baseChat.GetLLM(), []router.Handler{
 			todoHandle,

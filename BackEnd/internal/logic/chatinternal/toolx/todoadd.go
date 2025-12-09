@@ -78,9 +78,9 @@ func (t *TodoAdd) Call(ctx context.Context, input string) (string, error) {
 	}
 
 	// 确保Host包含协议
-	host := t.svc.Config.Host
+	url := t.svc.GetBaseURL() + "/v1/todo"	
 	// 调用API创建待办事项
-	res, err := curl.PostRequest(token.GetTokenStr(ctx), host+"/v1/todo", data)
+	res, err := curl.PostRequest(token.GetTokenStr(ctx), url, data)
 	if err != nil {
 		return "", err
 	}

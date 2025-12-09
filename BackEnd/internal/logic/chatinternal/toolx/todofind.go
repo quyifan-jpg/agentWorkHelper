@@ -96,10 +96,10 @@ func (t *TodoFind) Call(ctx context.Context, input string) (string, error) {
 	conversionTime("endTime", data)   // 转换结束时间格式
 
 	// 确保Host包含协议
-	host := t.svc.Config.Host
 
+	url := t.svc.GetBaseURL() + "/v1/todo/list"
 	// 调用API查询待办事项
-	res, err := curl.GetRequest(token.GetTokenStr(ctx), host+"/v1/todo/list", data)
+	res, err := curl.GetRequest(token.GetTokenStr(ctx), url, data)
 	if err != nil {
 		return "", err
 	}

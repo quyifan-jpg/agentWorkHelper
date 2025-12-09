@@ -38,19 +38,8 @@ func (t *DepartmentList) Call(ctx context.Context, input string) (string, error)
 		t.callback.HandleText(ctx, "Listing departments...")
 	}
 
-	// 1. Build URL
-	host := t.svc.Config.Host
-	if host == "0.0.0.0" {
-		host = "127.0.0.1"
-	}
-	if !strings.HasPrefix(host, "http") {
-		host = "http://" + host
-	}
-	if !strings.Contains(host, ":") || (strings.Count(host, ":") == 1 && strings.HasPrefix(host, "http")) {
-		host = fmt.Sprintf("%s:%d", host, t.svc.Config.Port)
-	}
-
-	url := host + "/v1/dep/soa"
+	// 1. Build URL using svc helper
+	url := t.svc.GetBaseURL() + "/v1/dep/soa"
 
 	// 2. Request API
 	// Since the Frontend calls it without params to get the full tree, we do the same.

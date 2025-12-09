@@ -1,7 +1,6 @@
 package chatinternal
 
 import (
-
 	"BackEnd/internal/logic/chatinternal/toolx"
 	"BackEnd/internal/svc"
 
@@ -12,11 +11,11 @@ type DepartmentHandle struct {
 	*AgentChat
 }
 
-func NewDepartmentHandle(svc *svc.ServiceContext) *DepartmentHandle {
+func NewDepartmentHandle(svc *svc.ServiceContext, l toolx.DepartmentLogic) *DepartmentHandle {
 	return &DepartmentHandle{
 		AgentChat: NewAgentChat(svc, []tools.Tool{
 			toolx.NewDepartmentList(svc),
-			// toolx.NewDepartmentUsers(svc),
+			toolx.NewDepartmentUsers(svc, l),
 		}),
 	}
 }

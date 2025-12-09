@@ -1,57 +1,104 @@
 package toolx
 
-// import (
-// 	"BackEnd/internal/svc"
-// 	"BackEnd/pkg/langchain/callbacks"
-// 	"BackEnd/pkg/langchain/outputparserx"
-// 	"github.com/tmc/langchaingo/tools"
-// )
+import (
+	"BackEnd/internal/domain"
+	"BackEnd/internal/svc"
+	"BackEnd/pkg/langchain/outputparserx"
+	"context"
+	"fmt" // Correct way to implement, but currently unused in this partial snippet if we remove URL logic
 
-// type DepartmentUsers struct {
-// 		svc          *svc.ServiceContext      // 服务上下文
-// 	callback     callbacks.Handler        // 回调处理器，用于记录执行日志
-// 	outputparser outputparserx.Structured // 结构化输出解析器，解析AI输出为结构化数据
-// }
+	"github.com/tmc/langchaingo/callbacks"
+)
 
-// func NewDepartmentUsers(svc *svc.ServiceContext) *DepartmentUsers {
-// 	return &DepartmentUsers{
-// 		svc: svc,
-// 		callback: svc.Callbacks,
-// 		outputparser: outputparserx.NewStructured([]outputparserx.ResponseSchema{
-// 			{
-// 				Name:        "users",
-// 				Description: "department users",
-// 				Type:        "[]string",
-// 			},
-// 		}),
-// 	}
-// }
+type DepartmentLogic interface {
+	SetDepartmentUsers(ctx context.Context, req *domain.SetDepartmentUser) error
+}
 
-// func (t *DepartmentUsers) Name() string {
-// 	return "department_users"
-// }
+type DepartmentUsers struct {
+	svc          *svc.ServiceContext      // Service Context
+	callback     callbacks.Handler        // Callback Handler
+	outputparser outputparserx.Structured // Output Parser
+	logic        DepartmentLogic          // Interface instead of concrete package ref
+}
 
-// func (t *DepartmentUsers) Description() string {
-// 	return "suitable for department users processing, such as department users creation, query, modification, deletion, etc"
-// }
+// NewDepartmentUsers creates a new instance of DepartmentUsers tool
+func NewDepartmentUsers(svc *svc.ServiceContext, l DepartmentLogic) *DepartmentUsers {
+	return &DepartmentUsers{
+		svc:      svc,
+		callback: svc.Callbacks,
+		// Logic is injected dependency
+		logic: l,
+		outputparser: outputparserx.NewStructured([]outputparserx.ResponseSchema{
+			{
+				Name:        "depId",
+				Description: "department id to update users for",
+				Type:        "string",
+			},
+			{
+				Name:        "userIds",
+				Description: "list of user ids to set for the department",
+				Type:        "[]string",
+			},
+		}),
+	}
+}
 
-// func (t *DepartmentUsers) Call(ctx context.Context, input string) (string, error) {
-// 	if t.callback != nil {
-// 		t.callback.HandleText(ctx, "department users start : "+input)
-// 	}
-	
-// 	data, err := t.outputparser.Parse(input)
-// 	if err != nil {
-// 		return "", err
-// 	}
-// 	uid, _ := token.GetUserID(ctx)
-// 	data["userId"] = uid    
-// 	conversionTime("startTime", data) 
-// 	conversionTime("endTime", data)   
-// 	url := t.svc.Config.Host + "/api/department/users"
-	
+func (t *DepartmentUsers) Name() string {
+	return "department_users"
+}
 
+func (t *DepartmentUsers) Description() string {
+	return "Useful for managing users within a department (specifically setting users). Requires 'depId' and 'userIds'." + t.outputparser.GetFormatInstructions()
+}
 
-// 	return "", nil
+func (t *DepartmentUsers) Call(ctx context.Context, input string) (string, error) {
+	if t.callback != nil {
+		t.callback.HandleText(ctx, "department users start : "+input)
+	}
 
-// }
+	// 1. Parse Input
+	data, err := t.outputparser.Parse(input)
+	if err != nil {
+		return "", err
+	}
+
+	params := data.(map[string]any)
+
+	// 2. Extract parameters (robustly)
+	depId, ok := params["depId"].(string)
+	if !ok || depId == "" {
+		return "", fmt.Errorf("missing or invalid 'depId'")
+	}
+
+	// Handle userIds which might be []interface{} from JSON parsing
+	var userIds []string
+	if uids, ok := params["userIds"].([]interface{}); ok {
+		for _, uid := range uids {
+			if s, ok := uid.(string); ok {
+				userIds = append(userIds, s)
+			}
+		}
+	} else if uids, ok := params["userIds"].([]string); ok {
+		userIds = uids
+	} else {
+		// Try to handle single string case if LLM messes up
+		if uidStr, ok := params["userIds"].(string); ok {
+			userIds = append(userIds, uidStr)
+		} else {
+			return "", fmt.Errorf("missing or invalid 'userIds'")
+		}
+	}
+
+	// 3. Call Logic Directly (Internal Call)
+	// We map the tool's intent to `SetDepartmentUsers` logic
+	req := &domain.SetDepartmentUser{
+		DepId:   depId,
+		UserIds: userIds,
+	}
+
+	if err := t.logic.SetDepartmentUsers(ctx, req); err != nil {
+		return "", fmt.Errorf("failed to set department users: %v", err)
+	}
+
+	return "Successfully updated department users.", nil
+}

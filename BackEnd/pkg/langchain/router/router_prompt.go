@@ -3,9 +3,10 @@ package router
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/tmc/langchaingo/outputparser"
 	"github.com/tmc/langchaingo/prompts"
-	"strings"
 )
 
 const (
@@ -35,6 +36,8 @@ modifications are needed.
 
 << INPUT >>
 {{.input}}
+
+IMPORTANT: Return ONLY the JSON code snippet. Do not include any "Thought", reasoning, or extra text.
 `
 )
 
@@ -58,14 +61,14 @@ func createPrompt(handler []Handler) prompts.PromptTemplate {
 		InputVariables: []string{_input},
 		TemplateFormat: prompts.TemplateFormatGoTemplate,
 		PartialVariables: map[string]any{
-			_destinations: handlerDestinations(handler),        // 生成处理器列表描述
+			_destinations: HandlerDestinations(handler),          // 生成处理器列表描述
 			_formatting:   _outputparser.GetFormatInstructions(), // 生成JSON格式指令
 		},
 	}
 }
 
-// handlerDestinations 将处理器列表转换为描述字符串，供LLM理解各处理器的用途
-func handlerDestinations(handler []Handler) string {
+// HandlerDestinations 将处理器列表转换为描述字符串，供LLM理解各处理器的用途
+func HandlerDestinations(handler []Handler) string {
 	var hs strings.Builder
 	for _, h := range handler {
 		hs.WriteString(fmt.Sprintf("- %s: %s\n", h.Name(), h.Description()))

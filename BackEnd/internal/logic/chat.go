@@ -69,12 +69,25 @@ func NewChat(svcCtx *svc.ServiceContext) Chat {
 		// Inject the logic implementation required by the tool
 		deptLogic := NewDepartment(svcCtx)
 		departmentHandle := chatinternal.NewDepartmentHandle(svcCtx, deptLogic)
-		chatHandle := chatinternal.NewChatHandle(svcCtx)
+
+		approvalLogic := NewApproval(svcCtx)
+		approvalHandle := chatinternal.NewApprovalHandle(svcCtx, approvalLogic)
+
+		// Prepare tool descriptions for the general chat handler so it knows about other tools
+		otherHandlers := []router.Handler{
+			todoHandle,
+			departmentHandle,
+			approvalHandle,
+		}
+		toolDescriptions := router.HandlerDestinations(otherHandlers)
+
+		chatHandle := chatinternal.NewChatHandle(svcCtx, toolDescriptions)
 		r = router.NewRouter(baseChat.GetLLM(), []router.Handler{
 			todoHandle,
 			departmentHandle,
+			approvalHandle,
 			chatHandle,
-		})
+		}, router.WithEmptyHandler(chatHandle))
 	}
 
 	return &chat{

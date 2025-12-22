@@ -2,7 +2,9 @@ package chatinternal
 
 const (
 	BASE_PROMPAT_TEMPLATE = `Current conversation:
-{{.history}}\n\n`
+{{.history}}
+Human: {{.input}}
+AI:`
 
 	_defaultMrklPrefix = `Today is {{.today}}.
 Answer the following questions as best you can. You have access to the following tools:
@@ -13,6 +15,22 @@ Answer the following questions as best you can. You have access to the following
 - Your response should follow the JSON format.
 - Your response should have the following structure: {"chatType": {{.chatType}}, "data": {{.data}} }
 - "chatType" this is a fixed output`
+
+	// ChatWithToolsTemplate 带有工具描述的通用聊天提示词
+	ChatWithToolsTemplate = `The following is a friendly conversation between a human and an AI.
+The AI is an office assistant for an application called AgentWorkHelper ("Agent Work Helper").
+
+The AI is aware of the following specialized tools available in the system, which are used for specific tasks:
+{{.tool_descriptions}}
+
+If the human asks about "what tools you have" or "what can you do", the AI should summarize the above tools.
+Otherwise, the AI should just engage in conversation normally.
+Note: You are NOT executing these tools right now. You are just chat handling.
+
+Current conversation:
+{{.history}}
+Human: {{.input}}
+AI:`
 
 	// _defaultChatLogPrompts AI群消息总结的提示词模板，用于指导LLM进行聊天记录分析和总结
 	_defaultChatLogPrompts = `Please summarize based on the following chat conversations

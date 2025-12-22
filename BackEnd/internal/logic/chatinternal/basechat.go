@@ -8,13 +8,15 @@ import (
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/openai"
 	"github.com/tmc/langchaingo/memory"
+	"github.com/tmc/langchaingo/prompts"
 	"github.com/tmc/langchaingo/schema"
 )
 
 type BaseChat struct {
-	llm    llms.Model
-	memory schema.Memory
-	chain  chains.Chain
+	llm          llms.Model
+	memory       schema.Memory
+	chain        chains.Chain
+	manualMemory bool
 }
 
 type baseChat struct {
@@ -61,15 +63,62 @@ func NewBaseChatFromLLM(llm llms.Model) *BaseChat {
 	}
 }
 
+func NewBaseChatFromLLMWithPrompt(llm llms.Model, prompt prompts.PromptTemplate) *BaseChat {
+	mem := memory.NewConversationBuffer()
+	// Create an LLMChain with the custom prompt.
+	// Note regarding memory: LLMChain usually doesn't automatically load/save context unless configured.
+	// We will handle memory manually in the Chat method if manualMemory is true.
+	chain := chains.NewLLMChain(llm, prompt)
+	chain.Memory = mem
+
+	return &BaseChat{
+		llm:          llm,
+		memory:       mem,
+		chain:        chain,
+		manualMemory: true,
+	}
+}
+
 func (b *BaseChat) Chat(ctx context.Context, input string) (string, error) {
-	res, err := chains.Call(ctx, b.chain, map[string]any{
+	inputs := map[string]any{
 		"input": input,
-	})
+	}
+
+	if b.manualMemory {
+		// Load history manually
+		history, err := b.memory.LoadMemoryVariables(ctx, inputs)
+		if err != nil {
+			return "", err
+		}
+
+		// Ensure history key exists even if map is empty
+		historyContent, ok := history["history"]
+		if !ok {
+			inputs["history"] = ""
+		} else {
+			inputs["history"] = historyContent
+		}
+
+		for k, v := range history {
+			inputs[k] = v
+		}
+	}
+
+	res, err := chains.Call(ctx, b.chain, inputs)
 	if err != nil {
 		return "", err
 	}
 
-	return res["text"].(string), nil
+	text := res["text"].(string)
+
+	if b.manualMemory {
+		// Save history manually
+		if err := b.memory.SaveContext(ctx, map[string]any{"input": input}, map[string]any{"text": text}); err != nil {
+			return "", err
+		}
+	}
+
+	return text, nil
 }
 
 // SaveContext saves context (like file content) to memory

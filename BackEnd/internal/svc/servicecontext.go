@@ -9,7 +9,7 @@ import (
 	// "log"
 
 	"github.com/tmc/langchaingo/callbacks"
-	"github.com/tmc/langchaingo/llms"
+
 	"github.com/tmc/langchaingo/llms/openai"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -20,7 +20,7 @@ type ServiceContext struct {
 	DB        *gorm.DB
 	Jwt       *middleware.Jwt
 	Callbacks callbacks.Handler
-	LLMs      llms.Model
+	LLMs      *openai.LLM
 }
 
 func NewServiceContext(c config.Config) *ServiceContext {

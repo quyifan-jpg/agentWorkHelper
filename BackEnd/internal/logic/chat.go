@@ -73,11 +73,15 @@ func NewChat(svcCtx *svc.ServiceContext) Chat {
 		approvalLogic := NewApproval(svcCtx)
 		approvalHandle := chatinternal.NewApprovalHandle(svcCtx, approvalLogic)
 
+		// Inject knowledge handler
+		knowledgeHandle := chatinternal.NewKnowledge(svcCtx)
+
 		// Prepare tool descriptions for the general chat handler so it knows about other tools
 		otherHandlers := []router.Handler{
 			todoHandle,
 			departmentHandle,
 			approvalHandle,
+			knowledgeHandle,
 		}
 		toolDescriptions := router.HandlerDestinations(otherHandlers)
 
@@ -86,6 +90,7 @@ func NewChat(svcCtx *svc.ServiceContext) Chat {
 			todoHandle,
 			departmentHandle,
 			approvalHandle,
+			knowledgeHandle,
 			chatHandle,
 		}, router.WithEmptyHandler(chatHandle))
 	}
@@ -159,11 +164,19 @@ func (l *chat) File(ctx context.Context, files []*domain.FileResp) (err error) {
 		})
 	}
 
+	// 将文件信息转换为JSON字符串
+	fileDataBytes, err := json.Marshal(fileData)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to marshal file data")
+		return err
+	}
+	fileDataStr := string(fileDataBytes)
+
 	// 保存到 AI 记忆上下文
 	// 这里简单地将文件列表作为 context 保存
 	// 实际应用中可能需要提取文件内容
 	err = l.baseChat.SaveContext(ctx, map[string]any{
-		"uploaded_files": fileData,
+		"uploaded_files": fileDataStr,
 	}, map[string]any{
 		"output": "Files uploaded and context updated",
 	})

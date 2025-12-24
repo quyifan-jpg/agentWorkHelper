@@ -24,4 +24,8 @@ type Config struct {
 		Model   string `mapstructure:"Model"`
 		BaseURL string `mapstructure:"BaseURL"`
 	} `mapstructure:"AI"`
+	Redis struct {
+		Addr     string `mapstructure:"Addr"`
+		Password string `mapstructure:"Password"`
+	} `mapstructure:"Redis"`
 }
